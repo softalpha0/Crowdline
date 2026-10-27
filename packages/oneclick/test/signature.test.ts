@@ -61,3 +61,22 @@ describe("verifyQuoteSignature", () => {
     expect(quoteMessage(q)).toBe(quoteMessage(recorded));
   });
 });
+
+// The real confidential quote from the first mainnet run (evidence/run-01).
+const live = JSON.parse(
+  readFileSync(new URL("./fixtures/quote-live-basic.json", import.meta.url), "utf8"),
+) as typeof recorded;
+
+describe("verifyQuoteSignature on an executed mainnet quote", () => {
+  it("accepts the signed confidential quote from run 01", () => {
+    expect(live.quoteRequest.dry).toBe(false);
+    expect(live.quoteRequest.confidentiality).toBe("basic");
+    expect(verifyQuoteSignature(live)).toBe(true);
+  });
+
+  it("covers the deposit address, so a swapped one is caught", () => {
+    const q = structuredClone(live);
+    q.quote.depositAddress = "t1UYsZVJkLPeMjxEtACvSxfWuNmddpWfxzs";
+    expect(verifyQuoteSignature(q)).toBe(false);
+  });
+});

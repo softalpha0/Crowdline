@@ -291,16 +291,29 @@ Threat model and what is out of scope: [docs/threat-model.md](docs/threat-model.
 
 ## The verified mainnet run
 
-_Pending._ The first mainnet swap (about 0.05 ZEC to USDC on Solana, paid from ZODL) is documented
-in [`evidence/`](evidence/) as soon as it settles, with the receipt, both transaction links and
-the 1Click status. Anyone can check a run with:
+One real swap, made on the live site on Oct 27, 2026 and documented in [`evidence/`](evidence/)
+with the receipt.
+
+| Time (UTC) | Event                                                                                                                                              | Status            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 23:22:34   | Live audit (10 → 40), confidential quote, signature verified                                                                                       | `PENDING_DEPOSIT` |
+| ~23:30     | 0.0015 ZEC paid from ZODL's shielded balance to `t1ZN3Ctg…Eyz6Mr`                                                                                  | `PROCESSING`      |
+| 23:38:20   | [1.685932 USDC paid out on Solana](https://solscan.io/tx/5zbufqTqQNa1HLGUGrgZgWUDMCdgkGiVjDJb8mCdPHqCqH2BimvBNar9G8m688kkVMYPmGrzq9VkUYE4T8vsH7az) | `SUCCESS`         |
+
+The swap was confidential: 1Click's public status endpoint answers "deposit address not found"
+without a partner key. The executed quote is also a test fixture, and changing its deposit address
+breaks the signature. The evidence page also records how the ZEC reached the shielded wallet (a
+bridge from Solana shortly before), and the timing link that leaves.
+
+Check it yourself:
 
 ```bash
-curl -s "https://1click.chaindefuser.com/v0/status?depositAddress=<DEPOSIT_ADDRESS>"
+curl -s "https://crowdline-chi.vercel.app/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr"
+curl -s "https://1click.chaindefuser.com/v0/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr"   # not found: confidential
 ```
 
 ```powershell
-Invoke-RestMethod "https://1click.chaindefuser.com/v0/status?depositAddress=<DEPOSIT_ADDRESS>" | ConvertTo-Json -Depth 6
+Invoke-RestMethod "https://crowdline-chi.vercel.app/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | ConvertTo-Json -Depth 6
 ```
 
 ## Screens
@@ -368,15 +381,16 @@ add `ONECLICK_API_KEY` and `EXPLORER_JWT` as environment variables.
 ## Testing
 
 ```bash
-pnpm test     # 66 tests
+pnpm test     # 69 tests
 pnpm check    # format, lint, typecheck, test
 ```
 
 No test touches the network. Every 1Click and Explorer response is a recorded fixture or a fake
 `fetch`. What the tests pin down:
 
-- **Signatures:** a real dry quote recorded from 1Click on 2026-10-27 verifies; changing the payout,
-  recipient, refund address or timestamp breaks it; malformed input returns false.
+- **Signatures:** a real dry quote and the executed confidential quote from the mainnet run both
+  verify; changing the payout, recipient, refund address, deposit address or timestamp breaks
+  them; malformed input returns false.
 - **Keys:** transparent addresses match an independent derivation; a fresh 24-word phrase every
   time; `m/44'/133'/0'/0/0`; receipts never contain the phrase or WIF.
 - **Amounts:** ZEC parsed to zatoshi without floating point; ZIP-321 requests carry no memo.
@@ -424,6 +438,24 @@ crowdline/
 - **Recovering a refund** needs a wallet that restores a seed and scans BIP-44 transparent
   addresses, or one that imports a WIF key. Test with a small amount first.
 
+<<<<<<< ours
+=======
+## Build log
+
+| When   | What                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------- |
+| Oct 27 | Picked the cross-chain track. Found the refund and swap-record leaks in public reports and the NEAR docs. |
+| Oct 27 | Crowd model, bucket rewrite, score, one-time refund keys, ZIP-321. 36 tests.                              |
+| Oct 27 | 1Click and Explorer clients, server, first web app, CLI.                                                  |
+| Oct 27 | Confirmed the ZEC asset id against live `/v0/tokens`; found that confidential quotes need a partner key.  |
+| Oct 27 | Quote signature verification from the official SDK's construction, tested on a real recorded quote.       |
+| Oct 27 | Explorer pagination, `/api/stats`, receipts by allow-list, plain-language upstream errors. 66 tests.      |
+| Oct 27 | React 19 + Tailwind 4 site: landing, swap flow, receipt verifier. Strict type-checked lint.               |
+| Oct 27 | Deployed to Vercel. Live audit: 511 swaps out of Zcash in 24h; a typical swap scores 10 → 40.             |
+| Oct 27 | First mainnet run: 0.0015 ZEC → 1.685932 USDC on Solana, confidential, signed, SUCCESS. 69 tests.         |
+| _next_ | Demo video, submission.                                                                                   |
+
+>>>>>>> theirs
 ## Credits
 
 - [NEAR Intents](https://docs.near-intents.org/) docs for 1Click, Confidential Intents, the

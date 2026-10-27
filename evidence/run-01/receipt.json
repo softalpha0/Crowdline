@@ -1,0 +1,196 @@
+{
+  "app": "crowdline",
+  "version": 1,
+  "createdAt": "2026-10-27T23:46:10.343Z",
+  "crowdData": "live",
+  "before": {
+    "score": 10,
+    "crowd": {
+      "inPerHour": 0.041666666666666664,
+      "outPerHour": 0.125,
+      "k": 1.0208333333333333,
+      "bits": 0.02974734339405193
+    },
+    "findings": [
+      {
+        "id": "ledger-link",
+        "severity": "critical",
+        "title": "The swap publishes both ends",
+        "detail": "In public mode the NEAR Intents Explorer lists your Zcash deposit and your payout in the same record. Nobody has to guess.",
+        "fix": "Request the quote with confidentiality set to basic."
+      },
+      {
+        "id": "amount",
+        "severity": "critical",
+        "title": "Your amount is unique",
+        "detail": "About 0.0 Zcash deposits and 0.1 payouts per hour fall inside ±1% of $1.98. Searching ±15 min around yours, an observer most likely finds no other swap like it. Your payout lands minutes after your deposit, so amount is what links them.",
+        "fix": "Send a crowded amount instead and keep the rest shielded."
+      },
+      {
+        "id": "refund",
+        "severity": "high",
+        "title": "Refunds go to an address you use",
+        "detail": "Leftover input and failed swaps are refunded transparently. Matching the refund's amount and time to the swap reveals the address, and every other swap that refunds there.",
+        "fix": "Use a one-time refund address for this swap only."
+      },
+      {
+        "id": "funding",
+        "severity": "ok",
+        "title": "Funded straight from the shielded pool",
+        "detail": "The deposit comes from a shielded note. The amount leaving the pool is public; who sent it is not."
+      },
+      {
+        "id": "recipient",
+        "severity": "ok",
+        "title": "Fresh recipient",
+        "detail": "This payout address has no NEAR Intents history in the data checked."
+      }
+    ]
+  },
+  "after": {
+    "score": 40,
+    "crowd": {
+      "inPerHour": 0.041666666666666664,
+      "outPerHour": 0.125,
+      "k": 1.0208333333333333,
+      "bits": 0.02974734339405193
+    }
+  },
+  "chosenAmountZec": "0.0015",
+  "refundAddress": "t1LKz8EJJyYu2TV2qKyKyyRahhy56VA9kZS",
+  "refundPath": "m/44'/133'/0'/0/0",
+  "quote": {
+    "quote": {
+      "amountIn": "150000",
+      "amountInFormatted": "0.0015",
+      "amountInUsd": "1.967085000000",
+      "minAmountIn": "150000",
+      "amountOut": "1688030",
+      "amountOutFormatted": "1.68803",
+      "amountOutUsd": "1.686964853070",
+      "minAmountOut": "1671149",
+      "timeEstimate": 454,
+      "refundFee": "32000",
+      "withdrawFee": "269691",
+      "deadline": "2026-10-31T01:22:34.806Z",
+      "timeWhenInactive": "2026-10-31T01:22:34.806Z",
+      "depositAddress": "t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr"
+    },
+    "quoteRequest": {
+      "dry": false,
+      "depositMode": "SIMPLE",
+      "swapType": "EXACT_INPUT",
+      "slippageTolerance": 100,
+      "originAsset": "nep141:zec.omft.near",
+      "depositType": "ORIGIN_CHAIN",
+      "destinationAsset": "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near",
+      "amount": "150000",
+      "refundTo": "t1LKz8EJJyYu2TV2qKyKyyRahhy56VA9kZS",
+      "refundType": "ORIGIN_CHAIN",
+      "recipient": "DvNXJTFuXi3TvDHHkP5uVMKzFiV79iSA3vXjKYr7LEKq",
+      "recipientType": "DESTINATION_CHAIN",
+      "deadline": "2026-10-28T01:22:34.806Z",
+      "confidentiality": "basic",
+      "referral": "crowdline",
+      "quoteWaitingTimeMs": 0,
+      "insured": false,
+      "appFees": [
+        {
+          "recipient": "2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805",
+          "fee": 20,
+          "limitOrderId": null
+        }
+      ]
+    },
+    "signature": "ed25519:5ZpqgcWHuxers1ruYxatz1mNgroPhGeu4tw8V7uFJU86JVAffHywhFR3AaJ148DtPq13GPEL5QjpLXYY1whtkzRg",
+    "timestamp": "2026-10-27T23:22:34.863Z",
+    "correlationId": "d0e7a540-a794-49fb-a533-1c5a902a1e44"
+  },
+  "signatureValid": true,
+  "status": {
+    "status": "SUCCESS",
+    "updatedAt": "2026-10-27T23:38:20.000Z",
+    "correlationId": "e3f964fe-b84f-43d8-8bcc-788d293b2795",
+    "swapDetails": {
+      "depositedAmount": "150000",
+      "depositedAmountUsd": "1.962555000000",
+      "depositedAmountFormatted": "0.0015",
+      "intentHashes": [
+        "2ZFvWWWzfdBkKCdneUHJeN2PkqTuBBau5ChBSA6t26uA",
+        "53LsnwZGv8Div4TdwmRwP5ufQJJStgYPKsPqXPJJbNUZ"
+      ],
+      "nearTxHashes": [
+        "BDwY2FvTo5YcBpuDLGeyGKZiPqMZBrz5UJwPTbujmXT8",
+        "EivRtMjyABkgT1PUrGGVtqVwVeZY1gq28j3Qmfkyuo3Z",
+        "2pDVnD7SNYfH4C9it85D2b4vqHvBa5ezbPQ3A8XXPoDw",
+        "3btBsqdPgv156ggBi19m3UCQ4icGcvpzXY9SjVK43HB8"
+      ],
+      "amountIn": "150000",
+      "amountInFormatted": "0.0015",
+      "amountInUsd": "1.962555000000",
+      "amountOut": "1685932",
+      "amountOutFormatted": "1.685932",
+      "amountOutUsd": "1.684858061316",
+      "slippage": 12,
+      "refundedAmount": "0",
+      "refundedAmountFormatted": "0",
+      "refundedAmountUsd": "0",
+      "refundReason": null,
+      "refundFee": "32000",
+      "withdrawFee": "269691",
+      "originChainTxHashes": [],
+      "destinationChainTxHashes": [
+        {
+          "hash": "5zbufqTqQNa1HLGUGrgZgWUDMCdgkGiVjDJb8mCdPHqCqH2BimvBNar9G8m688kkVMYPmGrzq9VkUYE4T8vsH7az",
+          "explorerUrl": ""
+        }
+      ]
+    },
+    "quoteResponse": {
+      "timestamp": "2026-10-27T23:22:34.863Z",
+      "signature": "ed25519:5ZpqgcWHuxers1ruYxatz1mNgroPhGeu4tw8V7uFJU86JVAffHywhFR3AaJ148DtPq13GPEL5QjpLXYY1whtkzRg",
+      "quoteRequest": {
+        "dry": false,
+        "swapType": "EXACT_INPUT",
+        "depositMode": "SIMPLE",
+        "slippageTolerance": 100,
+        "originAsset": "nep141:zec.omft.near",
+        "depositType": "ORIGIN_CHAIN",
+        "destinationAsset": "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near",
+        "amount": "150000",
+        "refundTo": "t1LKz8EJJyYu2TV2qKyKyyRahhy56VA9kZS",
+        "refundType": "ORIGIN_CHAIN",
+        "recipient": "DvNXJTFuXi3TvDHHkP5uVMKzFiV79iSA3vXjKYr7LEKq",
+        "recipientType": "DESTINATION_CHAIN",
+        "deadline": "2026-10-28T01:22:34.806Z",
+        "appFees": [
+          {
+            "limitOrderId": null,
+            "recipient": "2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805",
+            "fee": 20
+          }
+        ],
+        "virtualChainRecipient": null,
+        "virtualChainRefundRecipient": null,
+        "referral": "crowdline",
+        "confidentiality": "basic"
+      },
+      "quote": {
+        "amountIn": "150000",
+        "amountInFormatted": "0.0015",
+        "amountInUsd": "1.967085000000",
+        "minAmountIn": "150000",
+        "amountOut": "1688030",
+        "amountOutFormatted": "1.68803",
+        "amountOutUsd": "1.686964853070",
+        "minAmountOut": "1671149",
+        "timeWhenInactive": "2026-10-31T01:22:34.806Z",
+        "depositAddress": "t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr",
+        "deadline": "2026-10-31T01:22:34.806Z",
+        "timeEstimate": 454,
+        "refundFee": "32000",
+        "withdrawFee": "269691"
+      }
+    }
+  }
+}

@@ -53,7 +53,7 @@ form's prompt in order: what it does, why it does not leak, what is real and wha
 - Repo: https://github.com/softalpha0/crowdline
 - Live app: https://crowdline-chi.vercel.app
 - Video: _after recording_
-- Evidence: https://github.com/softalpha0/crowdline/tree/main/evidence
+- Evidence: https://github.com/softalpha0/crowdline/tree/main/evidence (run 01: 0.0015 ZEC → 1.685932 USDC on Solana, confidential, SUCCESS)
 
 ## How it uses Zcash
 

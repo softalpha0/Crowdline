@@ -631,6 +631,12 @@ function DepositStep({
     [uri],
   );
   const conf = confidentialityOf(quote);
+  // The request deadline is when refunds start. quote.deadline is only when the
+  // deposit address stops being watched, days later, so it is not shown.
+  const payBy =
+    typeof quote.quoteRequest.deadline === "string"
+      ? new Date(quote.quoteRequest.deadline)
+      : undefined;
   const links = status
     ? [
         ...status.swapDetails.originChainTxHashes.map((t) => ["Zcash deposit", t] as const),
@@ -683,8 +689,12 @@ function DepositStep({
             v={`≈ ${quote.quote.amountOutFormatted} ${destLabel} ($${Number(quote.quote.amountOutUsd).toFixed(2)})`}
           />
           <KV
-            k="Deadline"
-            v={quote.quote.deadline ? new Date(quote.quote.deadline).toLocaleString() : "—"}
+            k="Pay before"
+            v={
+              payBy
+                ? `${payBy.toLocaleString()} (after this the deposit is refunded, not swapped)`
+                : "—"
+            }
           />
         </dl>
       </div>
