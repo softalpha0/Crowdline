@@ -7,7 +7,7 @@
 | Project name    | Crowdline                                                      |
 | Track           | Cross-chain                                                    |
 | Code repository | https://github.com/softalpha0/crowdline                        |
-| Working demo    | _live URL, added after deploy_                                 |
+| Working demo    | https://crowdline-chi.vercel.app                               |
 | Demo video      | _added after recording (two minutes, per the submission form)_ |
 | Public repo     | Public by Oct 28, 2026 (the form's required checkbox)          |
 
@@ -51,7 +51,7 @@ form's prompt in order: what it does, why it does not leak, what is real and wha
 ## Links
 
 - Repo: https://github.com/softalpha0/crowdline
-- Live app: _after deploy_
+- Live app: https://crowdline-chi.vercel.app
 - Video: _after recording_
 - Evidence: https://github.com/softalpha0/crowdline/tree/main/evidence
 

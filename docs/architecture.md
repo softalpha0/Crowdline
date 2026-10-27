@@ -66,7 +66,7 @@ destination. `/api/stats` is one query, cached for five minutes.
 
 ## Hosting
 
-On a single Node host (`pnpm start`, or Render via `render.yaml`) one process serves everything,
+On a single Node host (`pnpm start`) one process serves everything,
 so the caches and the Explorer queue are shared by every visitor. On Vercel the site is static and
 `/api/*` runs as one Node function (`apps/server/src/vercel.ts`, bundled by
 `scripts/vercel-build.mjs`). Each warm instance keeps its own caches and queue, so under parallel

@@ -14,7 +14,7 @@ you pay straight from your shielded balance. It never holds funds.
 [![Crowdline](docs/demo-poster.jpg)](#crowdline)
 
 - **Demo video:** _added after recording_
-- **Live app:** _added after deploy_
+- **Live app:** https://crowdline-chi.vercel.app
 - **Verified mainnet run:** [`evidence/`](evidence/)
 - **Docs:** [threat model](docs/threat-model.md) · [scoring](docs/scoring.md) ·
   [architecture](docs/architecture.md) · [submission](docs/submission.md)
@@ -72,10 +72,17 @@ All of it is public data. None of it needs a subpoena.
 | **Execute** | Requests a 1Click quote with `confidentiality: "basic"`, exact input and the one-time refund, verifies 1Click's signature, and shows a ZIP-321 QR.   |
 | **Prove**   | Tracks the swap to the payout and gives you a receipt with the before and after scores and the signed quote. `/receipt` verifies it later.           |
 
-On demo data, a typical swap (3.417 ZEC to USDC on Solana, public mode, reused refund address,
-funded from a reused t-address) scores **10/100**. The same swap through Crowdline scores
-**61/100**: 3 ZEC goes out, 0.417 stays shielded. Live numbers depend on the hour and are in the
-[mainnet run](#the-verified-mainnet-run).
+Measured on the live site against real Explorer data (Oct 27, 2026, about 21:40 UTC, 1,144 recent
+swaps checked): a typical swap of 3.417 ZEC to USDC on Solana, in public mode with a reused refund
+address and funded from a reused t-address, scores **10/100**. Through Crowdline it scores
+**40/100**. Confidential mode, the one-time refund address and shielded funding add 30 points. The
+amount adds almost nothing: that hour only about 0.08 Zcash deposits and 0.04 USDC-on-Solana
+payouts per hour fell within ±1% of any one amount, so the best crowd was about 1. That is the
+"thin market" limit, measured rather than assumed. The same 24 hours held 511 finished swaps out
+of Zcash worth $4.96M, median $249 (`GET /api/stats`).
+
+On the synthetic demo flows (no Explorer key) the same swap goes from 10 to 61, because the demo
+market is busier than the real one.
 
 ## Try it in a minute
 
@@ -304,7 +311,7 @@ Invoke-RestMethod "https://1click.chaindefuser.com/v0/status?depositAddress=<DEP
 
 Phone (375px): [landing](docs/screens/landing-375.png) · [describe](docs/screens/app-describe-375.png) ·
 [audit](docs/screens/app-audit-375.png) · [refund](docs/screens/app-refund-375.png) ·
-[receipt](docs/screens/receipt-375.png). Screens show demo crowd data.
+[receipt](docs/screens/receipt-375.png). Screens show live crowd data, captured Oct 27, 2026.
 
 ## Tech stack
 
@@ -352,7 +359,7 @@ pnpm dev              # API on :8787, app on http://localhost:5173
 | `ONECLICK_API_KEY` | Confidential quotes. Without it the quote step is switched off.  | same, Distribution Channel key                                               |
 
 Production, any Node host: `pnpm build` then `pnpm start` serves the site and the API on one port
-(`PORT`, default 8787). `render.yaml` does this on Render.
+(`PORT`, default 8787).
 
 Vercel: `pnpm build:vercel` writes `.vercel/output` (Build Output API): the site as static files and
 `/api/*` as one Node function. Import the repo in Vercel, keep the settings from `vercel.json`, and
@@ -398,7 +405,6 @@ crowdline/
 ├── evidence/         mainnet receipts and transaction links
 ├── scripts/          vercel-build.mjs (Build Output API)
 ├── vercel.json       Vercel deploy
-├── render.yaml       one-service deploy on Render
 └── .github/workflows/ci.yml
 ```
 

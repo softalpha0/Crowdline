@@ -21,7 +21,8 @@ const LEAKS = [
     body: "Your deposit and payout land minutes apart at almost the same dollar value. If nobody else swapped that much, it was you.",
     fix: "Send a crowded amount; keep the rest shielded.",
     before: "1 look-alike",
-    after: "Crowded",
+    after: "Still thin",
+    afterTone: "warn",
   },
   {
     n: "03",
@@ -45,9 +46,9 @@ function HeroVisual() {
   return (
     <Card className="relative overflow-hidden p-5 sm:p-6">
       <div className="flex items-center justify-between">
-        <span className="eyebrow">Example · 3.417 ZEC → USDC</span>
-        <span className="num shrink-0 rounded-full border border-warn/40 px-2 py-0.5 text-xs whitespace-nowrap text-warn">
-          demo data
+        <span className="eyebrow">Measured · 3.417 ZEC → USDC on Solana</span>
+        <span className="num shrink-0 rounded-full border border-good/40 px-2 py-0.5 text-xs whitespace-nowrap text-good">
+          live data
         </span>
       </div>
       <div className="mt-6 flex items-center justify-around gap-4">
@@ -60,7 +61,7 @@ function HeroVisual() {
             strokeWidth="1.5"
           />
         </svg>
-        <ScoreDial score={61} tone="good" size={108} label="Through Crowdline" />
+        <ScoreDial score={40} tone="warn" size={108} label="Through Crowdline" />
       </div>
       <ul className="mt-6 divide-y divide-line border-t border-line p-0">
         {LEAKS.map((l) => (
@@ -73,11 +74,16 @@ function HeroVisual() {
             >
               <span className="text-bad line-through decoration-bad/50">{l.before}</span>
               <span className="text-faint">→</span>
-              <span className="text-good">{l.after}</span>
+              <span className={l.afterTone === "warn" ? "text-warn" : "text-good"}>{l.after}</span>
             </span>
           </li>
         ))}
       </ul>
+      <p className="mt-4 mb-0 text-xs text-faint">
+        Real Explorer data, Oct 27, 2026, 21:40 UTC: 1,144 recent swaps checked. Hardening adds 30
+        points; the amount adds almost none, because at most amounts the crowd that hour was about
+        1.
+      </p>
     </Card>
   );
 }
