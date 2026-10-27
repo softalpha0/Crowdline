@@ -1,0 +1,16 @@
+# One Render web service: the Node server answers /api/* and serves the built site.
+services:
+  - type: web
+    name: crowdline
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22.22.0"
+      - key: ONECLICK_API_KEY
+        sync: false
+      - key: EXPLORER_JWT
+        sync: false

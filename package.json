@@ -1,0 +1,46 @@
+{
+  "name": "crowdline",
+  "private": true,
+  "version": "0.1.0",
+  "description": "An intent firewall for shielded ZEC leaving Zcash through NEAR Intents.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @crowdline/server --filter @crowdline/web dev",
+    "build": "pnpm --filter @crowdline/web build",
+    "start": "pnpm --filter @crowdline/server start",
+    "cli": "pnpm --silent --filter @crowdline/cli start",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/web/tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "test:watch": "vitest",
+    "build:vercel": "node scripts/vercel-build.mjs"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "22.20.5",
+    "esbuild": "0.25.12",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "15.15.0",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}

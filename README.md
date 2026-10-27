@@ -1,0 +1,447 @@
+# Crowdline
+
+[![CI](https://github.com/softalpha0/crowdline/actions/workflows/ci.yml/badge.svg)](https://github.com/softalpha0/crowdline/actions/workflows/ci.yml)
+
+**Check what your shielded ZEC swap leaks before it leaves Zcash, then fix it.**
+
+When you swap shielded ZEC to another chain through NEAR Intents, four public facts can tie the
+swap back to you: the swap record, the amount, the refund address and the funding address.
+Crowdline reads the same public data an observer would, counts how many recent swaps look like
+yours, scores the swap out of 100, and rewrites it before anything is sent: a crowded amount, a
+Confidential Intents quote, a one-time refund address made on your device, and a ZIP-321 request
+you pay straight from your shielded balance. It never holds funds.
+
+[![Crowdline](docs/demo-poster.jpg)](#crowdline)
+
+- **Demo video:** _added after recording_
+- **Live app:** _added after deploy_
+- **Verified mainnet run:** [`evidence/`](evidence/)
+- **Docs:** [threat model](docs/threat-model.md) · [scoring](docs/scoring.md) ·
+  [architecture](docs/architecture.md) · [submission](docs/submission.md)
+
+Built for [Zecathon](https://thezecathon.com), Cross-chain track.
+
+---
+
+## Contents
+
+- [The problem](#the-problem)
+- [What Crowdline does](#what-crowdline-does)
+- [Try it in a minute](#try-it-in-a-minute)
+- [How it works](#how-it-works)
+- [The crowd model](#the-crowd-model)
+- [One refund address, one swap](#one-refund-address-one-swap)
+- [The swap lifecycle](#the-swap-lifecycle)
+- [What Crowdline does, and what it never does](#what-crowdline-does-and-what-it-never-does)
+- [Guarantees](#guarantees)
+- [The verified mainnet run](#the-verified-mainnet-run)
+- [Screens](#screens)
+- [Tech stack](#tech-stack)
+- [Running it yourself](#running-it-yourself)
+- [Testing](#testing)
+- [Project layout](#project-layout)
+- [Known limitations](#known-limitations)
+- [Build log](#build-log)
+- [Credits](#credits)
+
+## The problem
+
+Shielded ZEC is private until you swap it for something else. Most people leave Zcash through
+NEAR Intents 1Click, and on the way out four things give them away:
+
+1. **The public swap record.** In the default public mode, the NEAR Intents Explorer lists your
+   Zcash deposit and your payout on the other chain in the same row. Nobody has to guess.
+2. **The unique amount.** With that record hidden, your deposit and payout still land minutes
+   apart at almost the same dollar value. If nobody else swapped about $4,430 in that window, it
+   was you.
+3. **The reused refund address.** 1Click refunds ZEC to transparent addresses only. Reuse one and
+   every swap that refunds there is tied together. ZachXBT showed this in public with a static
+   refund address in a wallet integration.
+4. **Transparent funding.** Paying the deposit from a t-address with history joins the swap to
+   that history.
+
+All of it is public data. None of it needs a subpoena.
+
+## What Crowdline does
+
+| Step        | What happens                                                                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Audit**   | Pulls the last 24h of finished 1Click swaps from the NEAR Intents Explorer and counts how many look like yours. Scores the swap and lists each leak. |
+| **Rewrite** | Suggests an amount, never more than you typed, that sits in a bigger crowd. The difference stays in your shielded wallet.                            |
+| **Isolate** | Makes a one-time transparent refund address in your browser. Its key never reaches the server.                                                       |
+| **Execute** | Requests a 1Click quote with `confidentiality: "basic"`, exact input and the one-time refund, verifies 1Click's signature, and shows a ZIP-321 QR.   |
+| **Prove**   | Tracks the swap to the payout and gives you a receipt with the before and after scores and the signed quote. `/receipt` verifies it later.           |
+
+On demo data, a typical swap (3.417 ZEC to USDC on Solana, public mode, reused refund address,
+funded from a reused t-address) scores **10/100**. The same swap through Crowdline scores
+**61/100**: 3 ZEC goes out, 0.417 stays shielded. Live numbers depend on the hour and are in the
+[mainnet run](#the-verified-mainnet-run).
+
+## Try it in a minute
+
+1. Open the live app (link above) or run it locally ([below](#running-it-yourself)).
+2. **Check a swap.** Enter an amount, pick what you receive, paste the payout wallet address.
+3. Say how you would send it today, then **Audit this swap**.
+4. Pick an amount from the crowd list and **Harden this swap**.
+5. Save the 24 recovery words for the one-time refund address and tick the box.
+6. **Get a confidential quote.** Check the "Signed by 1Click" badge, scan the QR with ZODL, Zingo or
+   Zkool, and pay from your shielded balance.
+7. **Download receipt.** Load it on `/receipt` any time to re-verify the signature and the status.
+
+Or from a terminal:
+
+```bash
+pnpm cli audit --amount 3.417 --to USDC:sol --recipient <address> --funding transparent-reused
+```
+
+## How it works
+
+### Architecture
+
+```mermaid
+flowchart LR
+  subgraph Device["Your device"]
+    UI["Crowdline web app"]
+    KEY["One-time refund key<br/>(BIP-44, made here)"]
+    W["Shielded wallet<br/>ZODL / Zingo / Zkool"]
+  end
+  subgraph Server["Crowdline server"]
+    A["Audit<br/>crowd sizing + score"]
+    Q["Quote builder<br/>+ signature check"]
+    S["Stats<br/>(5 min cache)"]
+  end
+  EX["NEAR Intents<br/>Explorer API"]
+  OC["1Click Swap API"]
+  Z["Zcash"]
+  D["Destination chain"]
+
+  UI -- "amount, asset, recipient" --> A
+  A -- "last 24h of swaps" --> EX
+  S -- "last 24h out of Zcash" --> EX
+  KEY -- "refund address only" --> UI
+  UI -- "bucket amount + refund address" --> Q
+  Q -- "confidentiality: basic<br/>EXACT_INPUT" --> OC
+  OC -- "deposit address + signed quote" --> Q
+  Q -- "verified quote" --> UI
+  UI -- "ZIP-321 QR" --> W
+  W -- "pays from Orchard" --> Z
+  Z --> OC
+  OC --> D
+```
+
+All scoring lives in `packages/core`. The server calls it; the web app renders what comes back
+and never re-implements it. More detail: [docs/architecture.md](docs/architecture.md).
+
+### Where NEAR Intents fits
+
+Crowdline does not route funds. NEAR Intents does the swap, and Crowdline uses three of its
+public interfaces:
+
+- **1Click Swap API** (`/v0/tokens`, `/v0/quote`, `/v0/status`) for routes, prices, the deposit
+  address and swap status. Every quote is `EXACT_INPUT` with `confidentiality: "basic"`, which
+  1Click only accepts with a partner API key.
+- **Confidential Intents** keep the deposit and payout out of a single public record, so an
+  observer has to match them by amount and time. That is the gap the crowd model measures.
+- **Explorer API** (`/api/v0/transactions`) for the finished swaps the crowd is counted from. It
+  allows one request every five seconds; Crowdline queues and pages through it with
+  `lastDepositAddress`.
+
+1Click signs every quote with ed25519. Crowdline checks the signature on the server before it
+replies and again in the browser before it shows the QR, using the same message construction as
+the official SDK (`packages/oneclick/src/signature.ts`).
+
+## The crowd model
+
+For a swap worth `$usd` going to `destinationAsset`, Crowdline looks at the last 24 hours and counts:
+
+- `inRate`: Zcash-origin swaps per hour with `amountInUsd` within ±1% of `$usd`
+- `outRate`: swaps per hour paying out `destinationAsset` with `amountOutUsd` within ±1% of `$usd`
+
+An observer who sees your deposit searches about ±15 minutes for a matching payout. The expected
+number of swaps they cannot tell apart from yours, you included, is
+
+```
+k    = 1 + min(inRate, outRate) × 2 × 0.25
+bits = log2(k)
+```
+
+You are only as hidden as the thinner side. The amount is worth up to 60 points
+(`60 × min(1, bits / 5)`, full marks at k ≥ 32), a one-time refund address 15, shielded funding 15
+(a fresh t-address 7) and a recipient with no swap history 10. A public-mode swap is capped at 10.
+
+**Worked example** (the test fixture, pinned in `packages/core/test/score.test.ts`): 48 swaps of
+exactly 1 ZEC ($300) went from Zcash to USDC in the last 24 hours.
+
+| Step                     | Calculation                      | Result     |
+| ------------------------ | -------------------------------- | ---------- |
+| Deposits per hour in ±1% | 48 / 24                          | 2.0        |
+| Payouts per hour in ±1%  | 48 / 24                          | 2.0        |
+| Crowd                    | 1 + min(2.0, 2.0) × 2 × 0.25     | k = 2      |
+| Bits                     | log2(2)                          | 1.0        |
+| Amount points            | 60 × min(1, 1.0 / 5)             | 12         |
+| Hardening points         | one-time refund 15 + shielded 15 | 30         |
+| Recipient points         | no history                       | 10         |
+| **Score**                | 12 + 30 + 10                     | **52/100** |
+
+Full detail, including how buckets are chosen: [docs/scoring.md](docs/scoring.md).
+
+## One refund address, one swap
+
+1Click refunds ZEC to a transparent address, so the refund address is public, and a reused one
+links every swap that ever refunds there. Crowdline makes a new one for every swap:
+
+- A fresh 24-word BIP-39 phrase is generated in the browser with `@scure/bip39`.
+- The key is derived at `m/44'/133'/0'/0/0` with `@scure/bip32` and encoded as a mainnet `t1`
+  address (tested against an independent derivation).
+- Only the address goes to the server and to 1Click. The phrase and the WIF key stay in the tab,
+  hidden until you reveal them, and the page warns you before it closes mid-swap.
+- The receipt is built from an allow-list (`buildReceipt`), so the key cannot end up in it; a test
+  passes the full key object in and checks no two consecutive phrase words or the WIF appear.
+- Quotes are `EXACT_INPUT` for exactly the amount you send, so a successful swap has nothing to
+  refund. The address is only used if the swap fails.
+
+To recover a refund, restore the phrase in a wallet that scans BIP-44 transparent addresses, or
+import the WIF key, and shield the ZEC again.
+
+## The swap lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> Described
+  Described --> Audited: audit
+  Audited --> Hardened: pick amount, make refund key
+  Hardened --> Quoted: confidential quote, signature verified
+  Quoted --> PendingDeposit
+  PendingDeposit --> Processing: ZEC arrives
+  PendingDeposit --> Refunded: wrong amount or deadline
+  Processing --> Success
+  Processing --> Refunded: swap failed
+  Refunded --> [*]: refund lands on the one-time address
+  Success --> [*]
+```
+
+```mermaid
+sequenceDiagram
+  actor U as You
+  participant B as Browser
+  participant C as Crowdline server
+  participant E as Explorer API
+  participant O as 1Click
+  participant Z as Zcash
+  participant D as Destination
+
+  U->>B: 3.417 ZEC → USDC on Solana
+  B->>C: POST /api/audit
+  C->>E: swaps from zec, payouts of USDC (24h)
+  E-->>C: finished swaps
+  C-->>B: 10/100, four leaks, try 3 ZEC (keep 0.417)
+  U->>B: Harden
+  B->>B: make one-time refund key
+  B->>C: POST /api/quote (3 ZEC, refund address)
+  C->>O: quote(EXACT_INPUT, basic)
+  O-->>C: deposit t-address + ed25519 signature
+  C->>C: verify signature
+  C-->>B: signed quote
+  B->>B: verify signature again, build ZIP-321
+  U->>Z: pay from shielded balance
+  Z-->>O: deposit confirmed
+  O->>D: payout
+  B->>C: GET /api/status (every 10s)
+  C-->>B: SUCCESS + tx hashes
+  B-->>U: receipt
+```
+
+## What Crowdline does, and what it never does
+
+| Crowdline does                                               | Crowdline never                              |
+| ------------------------------------------------------------ | -------------------------------------------- |
+| Read public swap data from the Explorer                      | Hold, pool or route your funds               |
+| Score your swap and say which leak costs what                | Ask for a wallet connection or a viewing key |
+| Suggest an amount at or below what you typed                 | Suggest sending more than you typed          |
+| Make a refund key in your browser                            | Send, log or store that key                  |
+| Ask 1Click for a confidential quote and verify its signature | Show a quote whose signature fails           |
+| Label demo data as demo, everywhere                          | Present synthetic flows as real swaps        |
+| Say when the crowd is thin                                   | Add delays, which would mean holding funds   |
+
+## Guarantees
+
+| Claim                                      | How it is enforced                                                                 | Proof                                                                      |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Never holds funds                          | You pay 1Click's deposit address from your wallet; the server only builds requests | `apps/server/src/app.ts` (no wallet code anywhere)                         |
+| The refund key never leaves your device    | Generated in the browser; only the address is posted                               | `apps/web/src/pages/SwapApp.tsx`, `packages/core/test/refund.test.ts`      |
+| Receipts never contain the key             | `buildReceipt` copies from an allow-list                                           | `packages/core/test/receipt.test.ts`                                       |
+| Every quote is confidential                | `confidentiality` is always `basic` (or `advanced` if asked), never `public`       | `packages/oneclick/test/oneclick.test.ts`                                  |
+| Quotes are checked against 1Click's key    | ed25519 over the SDK's message; server refuses, browser hides the QR on failure    | `packages/oneclick/test/signature.test.ts`, `apps/server/test/app.test.ts` |
+| No refund on success                       | `EXACT_INPUT` for exactly the amount you send                                      | `packages/oneclick/test/oneclick.test.ts`                                  |
+| Refunds go only to a transparent address   | `buildQuoteRequest` rejects anything that is not t1/t3                             | `packages/oneclick/test/oneclick.test.ts`                                  |
+| Never suggests sending more than you typed | Buckets are capped at the requested amount                                         | `packages/core/test/crowd.test.ts`                                         |
+| A public swap never scores above 10        | Cap in `auditIntent`                                                               | `packages/core/test/score.test.ts`                                         |
+| Demo data is labelled                      | `mode: "demo"` on every response; badge and banner in the UI; field in receipts    | `apps/server/test/app.test.ts`                                             |
+| API keys stay on the server                | Read from the environment in `apps/server` only                                    | `apps/server/src/data.ts`                                                  |
+| The Explorer rate limit is respected       | One queue, 5.1s between calls, paging with `lastDepositAddress`                    | `packages/oneclick/test/oneclick.test.ts`                                  |
+
+Threat model and what is out of scope: [docs/threat-model.md](docs/threat-model.md).
+
+## The verified mainnet run
+
+_Pending._ The first mainnet swap (about 0.05 ZEC to USDC on Solana, paid from ZODL) is documented
+in [`evidence/`](evidence/) as soon as it settles, with the receipt, both transaction links and
+the 1Click status. Anyone can check a run with:
+
+```bash
+curl -s "https://1click.chaindefuser.com/v0/status?depositAddress=<DEPOSIT_ADDRESS>"
+```
+
+```powershell
+Invoke-RestMethod "https://1click.chaindefuser.com/v0/status?depositAddress=<DEPOSIT_ADDRESS>" | ConvertTo-Json -Depth 6
+```
+
+## Screens
+
+| Landing                                   | Audit                                     | Refund key                                  |
+| ----------------------------------------- | ----------------------------------------- | ------------------------------------------- |
+| ![Landing](docs/screens/landing-1440.png) | ![Audit](docs/screens/app-audit-1440.png) | ![Refund](docs/screens/app-refund-1440.png) |
+
+Phone (375px): [landing](docs/screens/landing-375.png) · [describe](docs/screens/app-describe-375.png) ·
+[audit](docs/screens/app-audit-375.png) · [refund](docs/screens/app-refund-375.png) ·
+[receipt](docs/screens/receipt-375.png). Screens show demo crowd data.
+
+## Tech stack
+
+| Part            | Choice                                                                          |
+| --------------- | ------------------------------------------------------------------------------- |
+| Language        | TypeScript, strict, `noUncheckedIndexedAccess`                                  |
+| Swaps           | NEAR Intents 1Click Swap API, Confidential Intents                              |
+| Crowd data      | NEAR Intents Explorer API                                                       |
+| Keys            | `@scure/bip39`, `@scure/bip32`, `@noble/hashes`, `@scure/base`                  |
+| Signatures      | `@noble/curves` ed25519                                                         |
+| Payment request | ZIP-321, QR via `uqr`                                                           |
+| Web             | React 19, React Router 8, Tailwind CSS 4, Vite 8, self-hosted fonts             |
+| Server          | Node `http`, no framework                                                       |
+| Tooling         | pnpm workspaces, Vitest 5, ESLint strict type-checked, Prettier, GitHub Actions |
+| Hosting         | Vercel: static site + one bundled Node function (`scripts/vercel-build.mjs`)    |
+
+## Running it yourself
+
+Requires Node 22.22 or newer and pnpm 10.
+
+**PowerShell**
+
+```powershell
+git clone https://github.com/softalpha0/crowdline
+cd crowdline
+pnpm install
+copy .env.example .env
+notepad .env          # add your keys, or leave empty for demo data
+pnpm dev              # API on :8787, app on http://localhost:5173
+```
+
+**bash**
+
+```bash
+git clone https://github.com/softalpha0/crowdline
+cd crowdline
+pnpm install
+cp .env.example .env  # add your keys, or leave empty for demo data
+pnpm dev              # API on :8787, app on http://localhost:5173
+```
+
+| Variable           | Needed for                                                       | Where to get it                                                              |
+| ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `EXPLORER_JWT`     | Live crowd data. Without it the app runs on labelled demo flows. | [partners.near-intents.org](https://partners.near-intents.org), Explorer key |
+| `ONECLICK_API_KEY` | Confidential quotes. Without it the quote step is switched off.  | same, Distribution Channel key                                               |
+
+Production, any Node host: `pnpm build` then `pnpm start` serves the site and the API on one port
+(`PORT`, default 8787). `render.yaml` does this on Render.
+
+Vercel: `pnpm build:vercel` writes `.vercel/output` (Build Output API): the site as static files and
+`/api/*` as one Node function. Import the repo in Vercel, keep the settings from `vercel.json`, and
+add `ONECLICK_API_KEY` and `EXPLORER_JWT` as environment variables.
+
+## Testing
+
+```bash
+pnpm test     # 66 tests
+pnpm check    # format, lint, typecheck, test
+```
+
+No test touches the network. Every 1Click and Explorer response is a recorded fixture or a fake
+`fetch`. What the tests pin down:
+
+- **Signatures:** a real dry quote recorded from 1Click on 2026-10-27 verifies; changing the payout,
+  recipient, refund address or timestamp breaks it; malformed input returns false.
+- **Keys:** transparent addresses match an independent derivation; a fresh 24-word phrase every
+  time; `m/44'/133'/0'/0/0`; receipts never contain the phrase or WIF.
+- **Amounts:** ZEC parsed to zatoshi without floating point; ZIP-321 requests carry no memo.
+- **Crowd model:** lookback, band, thinner-side logic, buckets never above the requested amount,
+  the README's worked example.
+- **Score:** a public-mode swap never scores above 10.
+- **Quotes:** `EXACT_INPUT`, `confidentiality`, zatoshi amounts, shielded refund addresses refused.
+- **Explorer:** requests spaced 5s apart; pagination follows `lastDepositAddress`, stops at the
+  window start, reports truncation.
+- **Server:** `/api/stats` labels demo data and caches for five minutes; `/api/quote` refuses
+  without a key, blocks a tampered quote, catches a wrong-chain payout address, and explains
+  1Click's bare 500 and Explorer 429s.
+
+## Project layout
+
+```
+crowdline/
+├── apps/
+│   ├── web/          React site: landing, /app (audit → refund key → QR + status), /receipt
+│   ├── server/       API: /api/config, /api/stats, /api/audit, /api/quote, /api/status
+│   └── cli/          crowdline audit | crowdline refund
+├── packages/
+│   ├── core/         crowd model, buckets, score, stats, refund keys, ZIP-321, receipts
+│   └── oneclick/     1Click + Explorer clients, quote builder, signature check
+├── docs/             threat model, scoring, architecture, submission, screens
+├── evidence/         mainnet receipts and transaction links
+├── scripts/          vercel-build.mjs (Build Output API)
+├── vercel.json       Vercel deploy
+├── render.yaml       one-service deploy on Render
+└── .github/workflows/ci.yml
+```
+
+## Known limitations
+
+- **The deposit itself is transparent.** NEAR Intents only takes ZEC at t-addresses, so the amount
+  leaving the pool is public. Crowdline makes it common; it cannot make it invisible.
+- **Crowds can be thin.** If few people swap similar amounts, the best bucket may still be small.
+  The score and the app say so.
+- **No delay.** The payout follows the deposit by minutes. A delay would mean holding funds.
+- **The landing-page crowd figure is a lower bound.** `/api/stats` only reads Zcash-origin swaps,
+  so payouts that started on other chains are not counted there. The audit itself counts both.
+- **Busy windows are undercounted.** The Explorer walk stops after six pages of 1,000 rows. That
+  makes scores stricter, not looser, and `/api/stats` reports `truncated: true`.
+- **1Click does not sign `confidentiality`.** The signature covers amounts, addresses and the
+  deposit address, not the visibility setting, so the app shows that field as its own check.
+- **Recovering a refund** needs a wallet that restores a seed and scans BIP-44 transparent
+  addresses, or one that imports a WIF key. Test with a small amount first.
+
+## Build log
+
+| When   | What                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------- |
+| Oct 27 | Picked the cross-chain track. Found the refund and swap-record leaks in public reports and the NEAR docs. |
+| Oct 27 | Crowd model, bucket rewrite, score, one-time refund keys, ZIP-321. 36 tests.                              |
+| Oct 27 | 1Click and Explorer clients, server, first web app, CLI.                                                  |
+| Oct 27 | Confirmed the ZEC asset id against live `/v0/tokens`; found that confidential quotes need a partner key.  |
+| Oct 27 | Quote signature verification from the official SDK's construction, tested on a real recorded quote.       |
+| Oct 27 | Explorer pagination, `/api/stats`, receipts by allow-list, plain-language upstream errors. 66 tests.      |
+| Oct 27 | React 19 + Tailwind 4 site: landing, swap flow, receipt verifier. Strict type-checked lint.               |
+| _next_ | Deploy, first mainnet run, demo video.                                                                    |
+
+## Credits
+
+- [NEAR Intents](https://docs.near-intents.org/) docs for 1Click, Confidential Intents, the
+  Explorer API and quote signature verification.
+- The Zcash community for [ZIP-321](https://zips.z.cash/zip-0321) and the transparent address
+  format, and [ZODL](https://github.com/zodl-inc) as the reference shielded wallet.
+- ZachXBT's public write-up of the static refund address leak, which this project answers.
+- [paulmillr](https://paulmillr.com/noble/) for the noble and scure libraries.
+- Space Grotesk (Florian Karsten) and JetBrains Mono, both under the SIL Open Font License, served
+  via Fontsource.
+- README structure modelled on [Cadence](https://github.com/Enoch208/cadence).
+
+Crowdline is independent and not affiliated with or endorsed by NEAR or the Zcash organisations.
+MIT licensed.

@@ -1,0 +1,16 @@
+{
+  "name": "@crowdline/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Leak model for shielded ZEC leaving through NEAR Intents: crowd sizing, bucket rewrite, one-time refund keys, ZIP-321.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "1.2.6",
+    "@scure/bip32": "1.7.0",
+    "@scure/bip39": "1.6.0"
+  }
+}

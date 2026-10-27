@@ -1,0 +1,16 @@
+{
+  "name": "@crowdline/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "crowdline": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx --env-file-if-exists=../../.env src/index.ts"
+  },
+  "dependencies": {
+    "@crowdline/core": "workspace:*",
+    "@crowdline/oneclick": "workspace:*"
+  }
+}
