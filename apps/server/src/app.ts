@@ -1,8 +1,13 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, normalize } from "node:path";
-import { checkRecipient } from "@crowdline/core";
-import { HttpError, buildQuoteRequest, verifyQuoteSignature } from "@crowdline/oneclick";
+import { checkRecipient, parseTransparent, ztx } from "@crowdline/core";
+import {
+  HttpError,
+  buildInboundQuoteRequest,
+  buildQuoteRequest,
+  verifyQuoteSignature,
+} from "@crowdline/oneclick";
 import { parseAuditRequest, runAudit, text } from "./audit.ts";
 import type { DataSource } from "./data.ts";
 import { CROWD_LOOKBACK_HOURS } from "./data.ts";
@@ -49,6 +54,27 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
     throw new UserError(400, "Request body is not valid JSON");
   }
 }
+
+/** A positive USD amount from the query string. */
+function usdParam(url: URL): number {
+  const usd = Number(url.searchParams.get("usd"));
+  if (!Number.isFinite(usd) || usd <= 0 || usd > 1e9)
+    throw new UserError(400, "usd must be a positive number");
+  return usd;
+}
+
+function signed<T>(quote: T): T {
+  if (!verifyQuoteSignature(quote)) {
+    throw new UserError(
+      502,
+      "1Click's quote signature did not verify, so Crowdline will not show it.",
+    );
+  }
+  return quote;
+}
+
+/** Largest sweep accepted for broadcast: far more inputs than a refund address ever holds. */
+const MAX_SWEEP_BYTES = 50_000;
 
 /** Turn upstream failures into messages a person can act on. */
 export function explain(err: unknown): { status: number; message: string } {
@@ -178,14 +204,91 @@ export function createApp(data: DataSource, webDist?: string) {
         confidentiality: b.confidentiality === "advanced" ? "advanced" : "basic",
         dry: b.dry === true,
       });
-      const quote = await data.oneclick.quote(request);
-      if (!verifyQuoteSignature(quote)) {
-        throw new UserError(
-          502,
-          "1Click's quote signature did not verify, so Crowdline will not show it.",
-        );
+      send(res, 200, signed(await data.oneclick.quote(request)));
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/inbound/quote") {
+      if (data.tokensAreDemo || !data.hasApiKey) {
+        throw new UserError(503, "Quotes need 1Click and an API key on this server.");
       }
-      send(res, 200, quote);
+      const b = (await readJson(req)) as Record<string, unknown>;
+      const tokens = await data.tokens();
+      const zec = await data.zec();
+      const originAsset = text(b.originAsset);
+      const origin = tokens.find((t) => t.assetId === originAsset);
+      if (!origin || origin.assetId === zec.assetId)
+        throw new UserError(400, "Unknown asset to send in");
+      const refundTo = text(b.refundTo);
+      const bad = checkRecipient(origin.blockchain, refundTo);
+      if (bad) throw new UserError(400, `Refund address: ${bad}`);
+      const request = buildInboundQuoteRequest({
+        originAsset,
+        originDecimals: origin.decimals,
+        zecAsset: zec.assetId,
+        amount: text(b.amount),
+        recipient: text(b.recipient),
+        refundTo,
+        confidentiality: b.confidentiality === "advanced" ? "advanced" : "basic",
+        dry: b.dry === true,
+      });
+      send(res, 200, signed(await data.oneclick.quote(request)));
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/timing") {
+      const destinationAsset = url.searchParams.get("destinationAsset");
+      if (!destinationAsset) throw new UserError(400, "destinationAsset is required");
+      send(res, 200, { mode: data.mode, ...(await data.timing(destinationAsset, usdParam(url))) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/routes") {
+      const also = url.searchParams.get("destinationAsset") ?? undefined;
+      send(res, 200, { mode: data.mode, routes: await data.routes(usdParam(url), also) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/backtest") {
+      send(res, 200, await data.backtest());
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/refund/coins") {
+      const address = url.searchParams.get("address") ?? "";
+      if (parseTransparent(address)?.network !== "mainnet") {
+        throw new UserError(400, "Enter a mainnet transparent address (t1...)");
+      }
+      const [info, coins] = await Promise.all([data.chain.info(), data.chain.utxos(address)]);
+      send(res, 200, {
+        height: info.height,
+        branchId: info.branchId,
+        coins: coins.map((c) => ({
+          ...c,
+          value: c.value.toString(),
+          script: ztx.hex.to(c.script),
+        })),
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/refund/broadcast") {
+      const raw = text(((await readJson(req)) as Record<string, unknown>).raw);
+      if (!/^([0-9a-f]{2})+$/i.test(raw) || raw.length > MAX_SWEEP_BYTES * 2) {
+        throw new UserError(400, "Not a raw transaction");
+      }
+      const bytes = ztx.hex.from(raw);
+      let tx;
+      try {
+        tx = ztx.parseTx(bytes);
+      } catch {
+        throw new UserError(400, "Not a Zcash v5 or v6 transaction");
+      }
+      if (tx.shielded) throw new UserError(400, "Crowdline only relays transparent sweeps");
+      const r = await data.chain.send(bytes);
+      if (r.errorCode !== 0)
+        throw new UserError(400, `The network refused the sweep: ${r.errorMessage}`);
+      send(res, 200, { txid: ztx.txid(tx) });
       return;
     }
 

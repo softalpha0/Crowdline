@@ -91,3 +91,24 @@ describe("the README's worked example", () => {
     expect(r.score).toBe(52); // 60 × 1/5 + 15 + 15 + 10
   });
 });
+
+describe("funding recency", () => {
+  const hardened: SwapIntent = {
+    ...typical,
+    amountZec: 1,
+    recipient: "fresh",
+    confidentiality: "basic",
+    funding: "shielded",
+    refund: "one-time",
+  };
+  it("costs points and adds a finding when funds were shielded recently", () => {
+    const base = auditIntent(hardened, ctx).score;
+    const hours = auditIntent({ ...hardened, shieldedAge: "hours" }, ctx);
+    const minutes = auditIntent({ ...hardened, shieldedAge: "under-hour" }, ctx);
+    expect(auditIntent({ ...hardened, shieldedAge: "over-day" }, ctx).score).toBe(base);
+    expect(hours.score).toBe(base - 5);
+    expect(minutes.score).toBe(base - 10);
+    expect(minutes.findings.find((f) => f.id === "timing")?.severity).toBe("high");
+    expect(auditIntent(hardened, ctx).findings.some((f) => f.id === "timing")).toBe(false);
+  });
+});

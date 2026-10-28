@@ -202,3 +202,153 @@ describe("Vercel entry", () => {
     expect(restoreUrl("/api/config")).toBe("/api/config");
   });
 });
+
+describe("insight routes", () => {
+  const demo = () => {
+    const { f } = oneclick();
+    return new DataSource({}, { oneclick: new OneClick({ fetch: f }), now: () => NOW });
+  };
+
+  it("sizes the swap by hour of day", async () => {
+    const r = await (await serve(demo()))(`/api/timing?destinationAsset=${USDC_SOL}&usd=300`);
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ mode: "demo", days: 3 });
+    expect(r.body.hours).toHaveLength(24);
+  });
+
+  it("compares routes, including the one asked about", async () => {
+    const r = await (await serve(demo()))(`/api/routes?usd=300&destinationAsset=${USDC_SOL}`);
+    const routes = r.body.routes as { destinationAsset: string; crowd: { k: number } }[];
+    expect(routes.map((x) => x.destinationAsset)).toContain(USDC_SOL);
+    expect(routes[0]!.crowd.k).toBeGreaterThanOrEqual(routes[routes.length - 1]!.crowd.k);
+  });
+
+  it("backtests and rejects a bad amount", async () => {
+    const get = await serve(demo());
+    const b = await get("/api/backtest");
+    expect(b.body).toMatchObject({ mode: "demo", band: 0.01 });
+    expect(b.body.swaps).toBeGreaterThan(0);
+    expect((await get("/api/timing?destinationAsset=x&usd=-1")).status).toBe(400);
+  });
+
+  it("reuses Explorer reads across routes through the cache", async () => {
+    const ex = fetchFrom(() => json([]));
+    const { f } = oneclick();
+    const data = new DataSource(
+      { EXPLORER_JWT: "j" },
+      {
+        oneclick: new OneClick({ fetch: f }),
+        explorer: new Explorer({ jwt: "j", fetch: ex.f, minGapMs: 0 }),
+        now: () => NOW,
+      },
+    );
+    const get = await serve(data);
+    await get(`/api/timing?destinationAsset=${USDC_SOL}&usd=300`);
+    const after = ex.calls.length;
+    await get("/api/stats");
+    await get(`/api/timing?destinationAsset=${USDC_SOL}&usd=900`);
+    expect(ex.calls.length).toBe(after);
+  });
+});
+
+describe("/api/inbound/quote", () => {
+  const body = (over: Record<string, unknown> = {}) => ({
+    method: "POST",
+    body: JSON.stringify({
+      originAsset: USDC_SOL,
+      amount: "25.5",
+      recipient: REFUND,
+      refundTo: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+      ...over,
+    }),
+  });
+
+  it("asks 1Click for ZEC to a transparent address, refunds on the origin chain", async () => {
+    let sent: Record<string, unknown> = {};
+    const { f } = oneclick((_url, init) => {
+      sent = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return json(QUOTE);
+    });
+    const data = new DataSource(
+      { ONECLICK_API_KEY: "k" },
+      { oneclick: new OneClick({ apiKey: "k", fetch: f }) },
+    );
+    const r = await (await serve(data))("/api/inbound/quote", body());
+    expect(r.status).toBe(200);
+    expect(sent).toMatchObject({
+      originAsset: USDC_SOL,
+      destinationAsset: "nep141:zec.omft.near",
+      amount: "25500000",
+      recipient: REFUND,
+      confidentiality: "basic",
+    });
+  });
+
+  it("refuses a shielded or foreign recipient and a wrong-chain refund address", async () => {
+    const { f } = oneclick();
+    const data = new DataSource(
+      { ONECLICK_API_KEY: "k" },
+      { oneclick: new OneClick({ apiKey: "k", fetch: f }) },
+    );
+    const post = await serve(data);
+    expect((await post("/api/inbound/quote", body({ recipient: "u1abc" }))).body.message).toMatch(
+      /transparent/,
+    );
+    expect((await post("/api/inbound/quote", body({ refundTo: "0x12" }))).body.message).toMatch(
+      /Refund address/,
+    );
+  });
+});
+
+describe("refund recovery", () => {
+  const tx = (
+    JSON.parse(read("../../../packages/core/test/fixtures/mainnet-v6.json")) as {
+      transactions: { raw: string }[];
+    }
+  ).transactions[0]!;
+
+  function chain() {
+    const sent: Uint8Array[] = [];
+    const lwd = {
+      info: () => Promise.resolve({ chainName: "main", branchId: 0x37a5165b, height: 3533000 }),
+      utxos: () =>
+        Promise.resolve([
+          { txid: "ab".repeat(32), index: 1, value: 150000n, script: new Uint8Array([0x76, 0xa9]) },
+        ]),
+      send: (raw: Uint8Array) => {
+        sent.push(raw);
+        return Promise.resolve({ errorCode: 0, errorMessage: "" });
+      },
+    };
+    const { f } = oneclick();
+    return {
+      sent,
+      data: new DataSource({}, { oneclick: new OneClick({ fetch: f }), lightwalletd: lwd }),
+    };
+  }
+
+  it("lists the coins at a transparent address with the chain tip", async () => {
+    const get = await serve(chain().data);
+    const r = await get(`/api/refund/coins?address=${REFUND}`);
+    expect(r.body).toEqual({
+      height: 3533000,
+      branchId: 0x37a5165b,
+      coins: [{ txid: "ab".repeat(32), index: 1, value: "150000", script: "76a9" }],
+    });
+    expect((await get("/api/refund/coins?address=u1nope")).status).toBe(400);
+  });
+
+  it("relays a transparent transaction and nothing else", async () => {
+    const c = chain();
+    const post = await serve(c.data);
+    const send = (raw: string) =>
+      post("/api/refund/broadcast", { method: "POST", body: JSON.stringify({ raw }) });
+    const ok = await send(tx.raw);
+    expect(ok.status).toBe(200);
+    expect(ok.body.txid).toMatch(/^[0-9a-f]{64}$/);
+    expect(c.sent).toHaveLength(1);
+    expect((await send("zz")).status).toBe(400);
+    expect((await send("0400008085202f89")).status).toBe(400);
+    expect(c.sent).toHaveLength(1);
+  });
+});

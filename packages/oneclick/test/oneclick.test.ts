@@ -1,7 +1,7 @@
 import { refundFromMnemonic } from "@crowdline/core";
 import { describe, expect, it } from "vitest";
 import { Explorer, OneClick, findZec } from "../src/client.ts";
-import { buildQuoteRequest } from "../src/plan.ts";
+import { buildInboundQuoteRequest, buildQuoteRequest } from "../src/plan.ts";
 
 const PHRASE =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
@@ -162,5 +162,34 @@ describe("Explorer client", () => {
     const out = await new Explorer({ ...fast, fetch: f }).transactionsSince({}, 0, 3);
     expect(calls).toHaveLength(3);
     expect(out).toMatchObject({ pages: 3, truncated: true });
+  });
+});
+
+describe("buildInboundQuoteRequest", () => {
+  const base = {
+    originAsset: "nep141:usdc.test",
+    originDecimals: 6,
+    zecAsset: "nep141:zec.omft.near",
+    amount: "12.34",
+    recipient: REFUND,
+    refundTo: " SolWallet ",
+    confidentiality: "basic" as const,
+    now: NOW,
+  };
+  it("swaps into ZEC at a transparent address, in the origin token's units", () => {
+    expect(buildInboundQuoteRequest(base)).toMatchObject({
+      originAsset: "nep141:usdc.test",
+      destinationAsset: "nep141:zec.omft.near",
+      amount: "12340000",
+      refundTo: "SolWallet",
+      recipient: REFUND,
+      swapType: "EXACT_INPUT",
+      deadline: "2026-10-27T13:00:00.000Z",
+    });
+  });
+  it("refuses shielded recipients and too many decimals", () => {
+    expect(() => buildInboundQuoteRequest({ ...base, recipient: "u1xyz" })).toThrow(/transparent/);
+    expect(() => buildInboundQuoteRequest({ ...base, amount: "1.0000001" })).toThrow(/decimals/);
+    expect(() => buildInboundQuoteRequest({ ...base, amount: "0" })).toThrow(/positive/);
   });
 });

@@ -8,6 +8,8 @@ import "./styles.css";
 
 const SwapApp = lazy(() => import("./pages/SwapApp.tsx"));
 const Receipt = lazy(() => import("./pages/Receipt.tsx"));
+const Recover = lazy(() => import("./pages/Recover.tsx"));
+const Inbound = lazy(() => import("./pages/Inbound.tsx"));
 
 function Loading() {
   return (
@@ -36,6 +38,22 @@ const router = createBrowserRouter([
         element: (
           <Suspense fallback={<Loading />}>
             <Receipt />
+          </Suspense>
+        ),
+      },
+      {
+        path: "/recover",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Recover />
+          </Suspense>
+        ),
+      },
+      {
+        path: "/in",
+        element: (
+          <Suspense fallback={<Loading />}>
+            <Inbound />
           </Suspense>
         ),
       },

@@ -114,6 +114,11 @@ export class Explorer {
       fetch?: Fetch;
       minGapMs?: number;
       sleep?: (ms: number) => Promise<void>;
+      /**
+       * Waits for this server's turn across instances. The limit is per
+       * partner key, so serverless copies must share one clock.
+       */
+      gate?: () => Promise<void>;
     },
   ) {}
 
@@ -123,6 +128,7 @@ export class Explorer {
     const run = this.chain.then(async () => {
       const wait = this.last + gap - Date.now();
       if (this.last && wait > 0) await sleep(wait);
+      await this.opts.gate?.();
       this.last = Date.now();
       return task();
     });

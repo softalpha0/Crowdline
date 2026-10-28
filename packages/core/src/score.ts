@@ -40,6 +40,8 @@ function plural(n: number, one: string, many: string): string {
  *
  * Score weights (out of 100):
  *   amount crowd 60 · refund isolation 15 · funding source 15 · fresh recipient 10.
+ * Shielded funding that arrived recently earns less (10 within hours, 5 within
+ * the hour), because arrival, shielding and exit line up in time.
  * A public-mode swap is capped at 10: the Explorer publishes both ends of it
  * in one record, so nothing else matters.
  */
@@ -134,6 +136,22 @@ export function auditIntent(intent: SwapIntent, ctx: AuditContext): Report {
   };
   findings.push(funding[intent.funding]);
 
+  // 4b. How fresh the shielded funds are.
+  const age = intent.shieldedAge ?? "unknown";
+  if (intent.funding === "shielded" && (age === "hours" || age === "under-hour")) {
+    findings.push({
+      id: "timing",
+      severity: age === "under-hour" ? "high" : "medium",
+      title:
+        age === "under-hour"
+          ? "These funds were shielded minutes ago"
+          : "These funds were shielded recently",
+      detail:
+        "Money that arrives, is shielded and leaves again within a short time can be matched by amount and timing: the shielding and this deposit are both visible on chain.",
+      fix: "Let shielded funds sit for at least a day, and do not exit the same amount that came in.",
+    });
+  }
+
   // 5. Recipient history.
   const seen = recipientHistory(ctx.flows, intent.recipient);
   findings.push(
@@ -156,7 +174,9 @@ export function auditIntent(intent: SwapIntent, ctx: AuditContext): Report {
   let score =
     60 * Math.min(1, crowd.bits / FULL_CROWD_BITS) +
     (intent.refund === "one-time" ? 15 : 0) +
-    { shielded: 15, "transparent-fresh": 7, "transparent-reused": 0 }[intent.funding] +
+    (intent.funding === "shielded"
+      ? { unknown: 15, "over-day": 15, hours: 10, "under-hour": 5 }[age]
+      : { "transparent-fresh": 7, "transparent-reused": 0 }[intent.funding]) +
     (seen > 0 ? 0 : 10);
   if (intent.confidentiality === "public") score = Math.min(score, 10);
 

@@ -1,4 +1,12 @@
-import type { Bucket, Report, SwapIntent, SwapStats } from "@crowdline/core";
+import type {
+  BacktestReport,
+  Bucket,
+  Report,
+  RouteCrowd,
+  SwapIntent,
+  SwapStats,
+  TimingReport,
+} from "@crowdline/core";
 
 export interface Destination {
   assetId: string;
@@ -69,6 +77,29 @@ export interface Stats extends SwapStats {
   zecUsd: number;
 }
 
+export interface Timing extends TimingReport {
+  mode: "live" | "demo";
+}
+
+export interface Routes {
+  mode: "live" | "demo";
+  routes: RouteCrowd[];
+}
+
+export interface Backtest extends Omit<BacktestReport, "buckets"> {
+  mode: "live" | "demo";
+  generatedAt: string;
+  destinations: string[];
+  /** toK is null for the open-ended top bucket (JSON has no Infinity). */
+  buckets: (Omit<BacktestReport["buckets"][number], "toK"> & { toK: number | null })[];
+}
+
+export interface RefundCoins {
+  height: number;
+  branchId: number;
+  coins: { txid: string; index: number; value: string; script: string }[];
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -99,6 +130,20 @@ export const api = {
     call<AuditResult>("/api/audit", { method: "POST", body: JSON.stringify(body) }),
   quote: (body: unknown) =>
     call<QuoteResult>("/api/quote", { method: "POST", body: JSON.stringify(body) }),
+  inboundQuote: (body: unknown) =>
+    call<QuoteResult>("/api/inbound/quote", { method: "POST", body: JSON.stringify(body) }),
+  timing: (destinationAsset: string, usd: number) =>
+    call<Timing>(`/api/timing?destinationAsset=${encodeURIComponent(destinationAsset)}&usd=${usd}`),
+  routes: (usd: number, destinationAsset: string) =>
+    call<Routes>(`/api/routes?usd=${usd}&destinationAsset=${encodeURIComponent(destinationAsset)}`),
+  backtest: () => call<Backtest>("/api/backtest"),
+  refundCoins: (address: string) =>
+    call<RefundCoins>(`/api/refund/coins?address=${encodeURIComponent(address)}`),
+  broadcast: (raw: string) =>
+    call<{ txid: string }>("/api/refund/broadcast", {
+      method: "POST",
+      body: JSON.stringify({ raw }),
+    }),
   status: (depositAddress: string) =>
     call<StatusResult>(`/api/status?depositAddress=${encodeURIComponent(depositAddress)}`),
 };

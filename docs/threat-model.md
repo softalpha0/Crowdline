@@ -4,7 +4,7 @@
 
 An observer with public data only:
 
-- the Zcash chain (transparent inputs and outputs, Orchard value balance, block times),
+- the Zcash chain (transparent inputs and outputs, shielded value balances, block times),
 - the NEAR Intents Explorer (every 1Click swap, with amounts once settled),
 - the destination chain (the payout transaction).
 
@@ -18,7 +18,7 @@ defend against 1Click itself, NEAR validators, or anyone with subpoena power ove
 | 1   | Deposit and payout listed together | Explorer record has `originChainTxHashes` and `destinationChainTxHashes` side by side in public mode | Quotes with `confidentiality: "basic"`; audit caps public-mode swaps at 10/100                          |
 | 2   | Amount + timing                    | Deposit on Zcash and payout on the destination land minutes apart with nearly the same USD value     | Sizes the crowd from real Explorer data and moves the swap to a crowded amount; the rest stays shielded |
 | 3   | Refund address                     | 1Click refunds ZEC to a transparent address only. A reused one links every swap that refunds there   | Generates a one-time t-address per swap, on the user's device                                           |
-| 4   | Funding from a transparent address | The deposit input is a public address with history                                                   | Tells the user to pay the ZIP-321 request straight from Orchard                                         |
+| 4   | Funding from a transparent address | The deposit input is a public address with history                                                   | Tells the user to pay the ZIP-321 request straight from the shielded pool                               |
 | 5   | Recipient reuse                    | The payout address appears in earlier swaps                                                          | Flags it; changing it is the user's call                                                                |
 
 ## What Crowdline cannot fix
@@ -42,3 +42,17 @@ amounts, recipient or refund address would be caught on your device.
 
 The signature does not cover `confidentiality`, `appFees` or `depositMode`. The app shows
 `confidentiality` as its own check rather than implying the signature vouches for it.
+
+## New surfaces
+
+| Feature         | What the server sees                                                             | What it never sees                   |
+| --------------- | -------------------------------------------------------------------------------- | ------------------------------------ |
+| Saved swaps     | Nothing. The sealed blob stays in the browser's storage.                         | The passphrase, words or quote       |
+| Refund recovery | The one-time address you look up, and the signed sweep it relays to lightwalletd | The recovery words or the WIF key    |
+| Inbound flow    | The same as an outbound quote: amount, your t-address, your origin-chain refund  | Anything about your shielded balance |
+| Timing, routes  | A dollar amount and a destination asset, as for the audit                        | Your payout address                  |
+
+The recovery address and the sweep are already public on the Zcash chain once broadcast, but
+looking them up through Crowdline tells the server that you hold that key. Use a lightwalletd and
+wallet of your own if that matters to you. A saved swap is only as strong as its passphrase:
+anyone with this browser profile can try to guess it offline.

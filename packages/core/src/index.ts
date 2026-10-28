@@ -10,3 +10,6 @@ export * from "./demo.ts";
 export * from "./stats.ts";
 export * from "./receipt.ts";
 export * from "./recipient.ts";
+export * as ztx from "./ztx.ts";
+export * from "./insights.ts";
+export * from "./session.ts";

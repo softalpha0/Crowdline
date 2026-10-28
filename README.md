@@ -2,8 +2,6 @@
 
 [![CI](https://github.com/softalpha0/crowdline/actions/workflows/ci.yml/badge.svg)](https://github.com/softalpha0/crowdline/actions/workflows/ci.yml)
 
-**Check what your shielded ZEC swap leaks before it leaves Zcash, then fix it.**
-
 When you swap shielded ZEC to another chain through NEAR Intents, four public facts can tie the
 swap back to you: the swap record, the amount, the refund address and the funding address.
 Crowdline reads the same public data an observer would, counts how many recent swaps look like
@@ -41,6 +39,7 @@ Built for [Zecathon](https://thezecathon.com), Cross-chain track.
 - [Testing](#testing)
 - [Project layout](#project-layout)
 - [Known limitations](#known-limitations)
+- [Roadmap](#roadmap)
 - [Build log](#build-log)
 - [Credits](#credits)
 
@@ -71,6 +70,20 @@ All of it is public data. None of it needs a subpoena.
 | **Isolate** | Makes a one-time transparent refund address in your browser. Its key never reaches the server.                                                       |
 | **Execute** | Requests a 1Click quote with `confidentiality: "basic"`, exact input and the one-time refund, verifies 1Click's signature, and shows a ZIP-321 QR.   |
 | **Prove**   | Tracks the swap to the payout and gives you a receipt with the before and after scores and the signed quote. `/receipt` verifies it later.           |
+
+Around the swap itself:
+
+| Feature             | What it does                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **When to swap**    | The same crowd model, hour by hour over the last three days (`GET /api/timing`), so you can see when swaps your size are common.                             |
+| **Which route**     | Sizes the same swap on the destinations people actually leave Zcash for (`GET /api/routes`) and offers to switch.                                            |
+| **Funding recency** | Asks when the funds entered the shielded pool. Money shielded minutes ago and sent straight out costs points and gets its own finding.                       |
+| **Saved swaps**     | Encrypts an unfinished swap (recovery words, quote) with your passphrase, PBKDF2 and AES-GCM in the browser, so a closed tab no longer loses the refund key. |
+| **Wallet guide**    | Step-by-step payment for ZODL, Zingo, Zkool and others, including why not to use ZODL's own CrossPay for this.                                               |
+| **Refund recovery** | `/recover`: words or WIF in, a signed transparent sweep out. Built and signed in the browser; the server only relays the signed bytes.                       |
+| **The way in**      | `/in`: another chain's asset to ZEC with a confidential quote, then shield it. Remembers when, for the recency check.                                        |
+| **Backtest**        | Replays the observer against the last day of real swaps (`GET /api/backtest`) and shows how often a swap in each predicted crowd was linked with certainty.  |
+| **Shared cache**    | With Upstash Redis or Vercel KV configured, Explorer reads and the 5-second Explorer turn are shared by every server instance.                               |
 
 Measured on the live site against real Explorer data (Oct 27, 2026, about 21:40 UTC, 1,144 recent
 swaps checked): a typical swap of 3.417 ZEC to USDC on Solana, in public mode with a reused refund
@@ -131,7 +144,7 @@ flowchart LR
   OC -- "deposit address + signed quote" --> Q
   Q -- "verified quote" --> UI
   UI -- "ZIP-321 QR" --> W
-  W -- "pays from Orchard" --> Z
+  W -- "pays from the shielded pool" --> Z
   Z --> OC
   OC --> D
 ```
@@ -366,10 +379,12 @@ cp .env.example .env  # add your keys, or leave empty for demo data
 pnpm dev              # API on :8787, app on http://localhost:5173
 ```
 
-| Variable           | Needed for                                                       | Where to get it                                                              |
-| ------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `EXPLORER_JWT`     | Live crowd data. Without it the app runs on labelled demo flows. | [partners.near-intents.org](https://partners.near-intents.org), Explorer key |
-| `ONECLICK_API_KEY` | Confidential quotes. Without it the quote step is switched off.  | same, Distribution Channel key                                               |
+| Variable                               | Needed for                                                                                                                         | Where to get it                                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `EXPLORER_JWT`                         | Live crowd data. Without it the app runs on labelled demo flows.                                                                   | [partners.near-intents.org](https://partners.near-intents.org), Explorer key |
+| `ONECLICK_API_KEY`                     | Confidential quotes. Without it the quote step is switched off.                                                                    | same, Distribution Channel key                                               |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Optional. Shares cached Explorer reads across server instances. `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` also work. | Vercel Storage (Upstash for Redis), or upstash.com                           |
+| `LIGHTWALLETD_HOST`                    | Optional. lightwalletd used by refund recovery. Default `zec.rocks:443`.                                                           | any public lightwalletd                                                      |
 
 Production, any Node host: `pnpm build` then `pnpm start` serves the site and the API on one port
 (`PORT`, default 8787).
@@ -381,7 +396,7 @@ add `ONECLICK_API_KEY` and `EXPLORER_JWT` as environment variables.
 ## Testing
 
 ```bash
-pnpm test     # 69 tests
+pnpm test     # 107 tests
 pnpm check    # format, lint, typecheck, test
 ```
 
@@ -400,20 +415,31 @@ No test touches the network. Every 1Click and Explorer response is a recorded fi
 - **Quotes:** `EXACT_INPUT`, `confidentiality`, zatoshi amounts, shielded refund addresses refused.
 - **Explorer:** requests spaced 5s apart; pagination follows `lastDepositAddress`, stops at the
   window start, reports truncation.
+- **Sweeps:** two real v6 mainnet transactions re-encode byte for byte, their txids match, and all
+  their signatures verify under Crowdline's ZIP 244 / ZIP 229 digest; sweeps pay the ZIP 317 fee,
+  use low-S signatures, pick v5 or v6 from the branch id, and refuse coins locked to another key.
+- **Insights:** hour-of-day crowds, route ranking and the backtest on hand-built flows, including
+  a payout pushed outside the band by fees.
+- **Sessions:** a saved swap opens only with its passphrase, never stores the words in clear, and
+  uses a fresh salt and IV each time.
 - **Server:** `/api/stats` labels demo data and caches for five minutes; `/api/quote` refuses
   without a key, blocks a tampered quote, catches a wrong-chain payout address, and explains
-  1Click's bare 500 and Explorer 429s.
+  1Click's bare 500 and Explorer 429s; timing, routes and stats share one Explorer read; the
+  inbound quote refuses shielded recipients; the broadcast endpoint relays transparent
+  transactions only; the Upstash client speaks the REST protocol to a fake.
 
 ## Project layout
 
 ```
 crowdline/
 ├── apps/
-│   ├── web/          React site: landing, /app (audit → refund key → QR + status), /receipt
-│   ├── server/       API: /api/config, /api/stats, /api/audit, /api/quote, /api/status
+│   ├── web/          React site: landing, /app, /in, /recover, /receipt
+│   ├── server/       API: config, stats, audit, quote, status, timing, routes, backtest,
+│   │                 inbound/quote, refund/coins, refund/broadcast; shared cache; lightwalletd
 │   └── cli/          crowdline audit | crowdline refund
 ├── packages/
-│   ├── core/         crowd model, buckets, score, stats, refund keys, ZIP-321, receipts
+│   ├── core/         crowd model, buckets, score, stats, insights, refund keys, sweeps
+│   │                 (ztx), sealed sessions, ZIP-321, receipts
 │   └── oneclick/     1Click + Explorer clients, quote builder, signature check
 ├── docs/             threat model, scoring, architecture, submission, screens
 ├── evidence/         mainnet receipts and transaction links
@@ -435,27 +461,36 @@ crowdline/
   makes scores stricter, not looser, and `/api/stats` reports `truncated: true`.
 - **1Click does not sign `confidentiality`.** The signature covers amounts, addresses and the
   deposit address, not the visibility setting, so the app shows that field as its own check.
-- **Recovering a refund** needs a wallet that restores a seed and scans BIP-44 transparent
-  addresses, or one that imports a WIF key. Test with a small amount first.
+- **Refund recovery is transparent to transparent.** `/recover` sweeps to a t-address; shield it
+  in your wallet after. The signing code matches real mainnet transactions, but no sweep has been
+  broadcast through the page yet, so start with a small refund.
+- **The inbound flow pays a t-address.** 1Click delivers ZEC to transparent addresses only, so the
+  arrival is public until you shield it.
+- **The backtest observer is simple.** It matches by amount and time only, and places deposit and
+  payout at the swap's creation time. A better-equipped observer can do more.
 
-<<<<<<< ours
-=======
+## Roadmap
+
+Next, in order: an SDK so wallets can run the audit before their own swaps, a business model
+through 1Click `appFees`, a public linkability index, and hosting fit for a privacy tool (onion
+service, reproducible builds, IPFS mirror). Details: [docs/roadmap.md](docs/roadmap.md).
+
 ## Build log
 
-| When   | What                                                                                                      |
-| ------ | --------------------------------------------------------------------------------------------------------- |
-| Oct 27 | Picked the cross-chain track. Found the refund and swap-record leaks in public reports and the NEAR docs. |
-| Oct 27 | Crowd model, bucket rewrite, score, one-time refund keys, ZIP-321. 36 tests.                              |
-| Oct 27 | 1Click and Explorer clients, server, first web app, CLI.                                                  |
-| Oct 27 | Confirmed the ZEC asset id against live `/v0/tokens`; found that confidential quotes need a partner key.  |
-| Oct 27 | Quote signature verification from the official SDK's construction, tested on a real recorded quote.       |
-| Oct 27 | Explorer pagination, `/api/stats`, receipts by allow-list, plain-language upstream errors. 66 tests.      |
-| Oct 27 | React 19 + Tailwind 4 site: landing, swap flow, receipt verifier. Strict type-checked lint.               |
-| Oct 27 | Deployed to Vercel. Live audit: 511 swaps out of Zcash in 24h; a typical swap scores 10 → 40.             |
-| Oct 27 | First mainnet run: 0.0015 ZEC → 1.685932 USDC on Solana, confidential, signed, SUCCESS. 69 tests.         |
-| _next_ | Demo video, submission.                                                                                   |
+| When   | What                                                                                                                          |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Oct 27 | Picked the cross-chain track. Found the refund and swap-record leaks in public reports and the NEAR docs.                     |
+| Oct 27 | Crowd model, bucket rewrite, score, one-time refund keys, ZIP-321. 36 tests.                                                  |
+| Oct 27 | 1Click and Explorer clients, server, first web app, CLI.                                                                      |
+| Oct 27 | Confirmed the ZEC asset id against live `/v0/tokens`; found that confidential quotes need a partner key.                      |
+| Oct 27 | Quote signature verification from the official SDK's construction, tested on a real recorded quote.                           |
+| Oct 27 | Explorer pagination, `/api/stats`, receipts by allow-list, plain-language upstream errors. 66 tests.                          |
+| Oct 27 | React 19 + Tailwind 4 site: landing, swap flow, receipt verifier. Strict type-checked lint.                                   |
+| Oct 27 | Deployed to Vercel. Live audit: 511 swaps out of Zcash in 24h; a typical swap scores 10 → 40.                                 |
+| Oct 27 | First mainnet run: 0.0015 ZEC → 1.685932 USDC on Solana, confidential, signed, SUCCESS. 69 tests.                             |
+| Oct 27 | Demo video, submission.                                                                                                       |
+| Oct 28 | Timing, routes, funding recency, saved swaps, wallet guide, refund recovery, inbound flow, backtest, shared cache. 107 tests. |
 
->>>>>>> theirs
 ## Credits
 
 - [NEAR Intents](https://docs.near-intents.org/) docs for 1Click, Confidential Intents, the
@@ -466,6 +501,7 @@ crowdline/
 - [paulmillr](https://paulmillr.com/noble/) for the noble and scure libraries.
 - Space Grotesk (Florian Karsten) and JetBrains Mono, both under the SIL Open Font License, served
   via Fontsource.
+- README structure modelled on [Cadence](https://github.com/Enoch208/cadence).
 
 Crowdline is independent and not affiliated with or endorsed by NEAR or the Zcash organisations.
 MIT licensed.

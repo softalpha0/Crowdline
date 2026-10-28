@@ -42,3 +42,21 @@ describe("runAudit on demo flows", () => {
     expect(out.after.crowd.k).toBeGreaterThanOrEqual(out.before.crowd.k);
   });
 });
+
+describe("funding recency in the audit", () => {
+  const ctx = { flows, zecAsset: DEMO_ZEC_ASSET, zecUsd: 300 };
+  const req = (over: Record<string, unknown>) =>
+    parseAuditRequest({ amountZec: "3.417", destinationAsset: DEMO_DESTINATIONS[0], ...over });
+
+  it("flags money shielded minutes ago, before and after hardening", () => {
+    const out = runAudit(req({ funding: "shielded", shieldedAge: "under-hour" }), ctx);
+    expect(out.before.findings.some((f) => f.id === "timing")).toBe(true);
+    expect(out.after.findings.some((f) => f.id === "timing")).toBe(true);
+    expect(() => req({ shieldedAge: "yesterday" })).toThrow(/shieldedAge/);
+  });
+
+  it("does not pretend that shielding right now is old money", () => {
+    const out = runAudit(req({ funding: "transparent-reused" }), ctx);
+    expect(out.hardened.shieldedAge).toBe("under-hour");
+  });
+});

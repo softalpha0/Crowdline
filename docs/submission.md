@@ -19,7 +19,7 @@ The track asks for "swaps, bridges and intents that reach other chains without u
 way through." A swap out of Zcash through NEAR Intents is exactly that kind of intent, and today
 it usually leaks on the way through: a public swap record, a unique amount, a reused transparent
 refund address, a transparent funding hop. Crowdline keeps the ZEC in the shielded pool until the
-moment it pays the deposit (straight from Orchard, no unshield to a t-address of your own), and
+moment it pays the deposit (straight from the shielded pool, no unshield to a t-address of your own), and
 rewrites the intent so the parts NEAR Intents forces into the open (a transparent deposit address,
 a transparent refund address) reveal as little as possible.
 
@@ -59,7 +59,7 @@ form's prompt in order: what it does, why it does not leak, what is real and wha
 
 - **ZIP-321** payment requests for the 1Click deposit, with no memo (ZIP-321 forbids memos on
   transparent recipients), shown as a QR that ZODL, Zingo or Zkool pays.
-- **Shielded funding:** the deposit is paid straight from an Orchard note, so the sender is not
+- **Shielded funding:** the deposit is paid straight from a shielded note, so the sender is not
   revealed and there is no unshield hop to a t-address of your own.
 - **Transparent refund keys:** a BIP-44 key at `m/44'/133'/0'/0/0` from a fresh 24-word phrase,
   encoded as a mainnet `t1` address, made in the browser for one swap.

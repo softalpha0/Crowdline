@@ -20,6 +20,14 @@ function Nav() {
             How it works
           </a>
           <NavLink
+            to="/in"
+            className={({ isActive }) =>
+              `hidden rounded-md px-3 py-2 text-sm md:inline-block ${isActive ? "text-fg" : "text-muted hover:text-fg"}`
+            }
+          >
+            Into Zcash
+          </NavLink>
+          <NavLink
             to="/receipt"
             className={({ isActive }) =>
               `hidden rounded-md px-3 py-2 text-sm sm:inline-block ${isActive ? "text-fg" : "text-muted hover:text-fg"}`
@@ -68,6 +76,16 @@ function Footer() {
           <li>
             <Link className="hover:text-fg" to="/receipt">
               Verify a receipt
+            </Link>
+          </li>
+          <li>
+            <Link className="hover:text-fg" to="/recover">
+              Recover a refund
+            </Link>
+          </li>
+          <li>
+            <Link className="hover:text-fg" to="/in">
+              Bring assets in
             </Link>
           </li>
           <li>

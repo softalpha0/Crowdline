@@ -5,6 +5,7 @@ import type {
   FundingSource,
   RefundMode,
   Report,
+  ShieldedAge,
   SwapIntent,
 } from "@crowdline/core";
 import { auditIntent, suggestBuckets } from "@crowdline/core";
@@ -15,6 +16,8 @@ export interface AuditRequest {
   recipient: string;
   confidentiality: Confidentiality;
   funding: FundingSource;
+  /** For shielded funding: how long ago the funds entered the shielded pool. */
+  shieldedAge: ShieldedAge;
   refund: RefundMode;
   /** The refund address the user would otherwise use. Checked against history only. */
   refundTo?: string;
@@ -32,6 +35,7 @@ export interface AuditResponse {
 const CONF = ["public", "basic", "advanced"] as const;
 const FUND = ["shielded", "transparent-fresh", "transparent-reused"] as const;
 const REFUND = ["reused", "one-time"] as const;
+const AGE = ["unknown", "over-day", "hours", "under-hour"] as const;
 
 /** A request field as text: strings and numbers pass, anything else is empty. */
 export function text(v: unknown): string {
@@ -61,6 +65,7 @@ export function parseAuditRequest(body: unknown): AuditRequest {
     recipient: text(b.recipient).trim(),
     confidentiality: oneOf(b.confidentiality ?? "public", CONF, "confidentiality"),
     funding: oneOf(b.funding ?? "shielded", FUND, "funding"),
+    shieldedAge: oneOf(b.shieldedAge ?? "unknown", AGE, "shieldedAge"),
     refund: oneOf(b.refund ?? "reused", REFUND, "refund"),
     refundTo: typeof b.refundTo === "string" && b.refundTo.trim() ? b.refundTo.trim() : undefined,
     maxHoldBack,
@@ -84,6 +89,7 @@ export function runAudit(
     recipient: req.recipient,
     confidentiality: req.confidentiality,
     funding: req.funding,
+    ...(req.funding === "shielded" ? { shieldedAge: req.shieldedAge } : {}),
     refund: req.refund,
   };
   const before = auditIntent(intent, {
@@ -109,6 +115,8 @@ export function runAudit(
     amountZec: best ? Number(best.amountZec) : intent.amountZec,
     confidentiality: intent.confidentiality === "public" ? "basic" : intent.confidentiality,
     funding: "shielded",
+    // Funds shielded only now, to make this swap, have barely sat in the pool.
+    shieldedAge: intent.funding === "shielded" ? req.shieldedAge : "under-hour",
     refund: "one-time",
   };
   const after = auditIntent(hardened, { flows: ctx.flows, zecAsset: ctx.zecAsset });

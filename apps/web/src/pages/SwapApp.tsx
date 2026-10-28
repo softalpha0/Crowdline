@@ -1,20 +1,28 @@
-import type { Bucket, Finding, OneTimeRefund, Report } from "@crowdline/core";
+import type { Bucket, Finding, OneTimeRefund, Report, ShieldedAge } from "@crowdline/core";
 import {
   buildReceipt,
   checkRecipient,
   depositRequest,
   newOneTimeRefund,
+  openSession,
   parseTransparent,
   parseZec,
+  passphraseProblem,
+  refundFromMnemonic,
+  sealSession,
 } from "@crowdline/core";
 import { verifyQuoteSignature } from "@crowdline/oneclick";
 import type { ReactNode, SyntheticEvent } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Link } from "react-router";
 import { renderSVG } from "uqr";
+import { RoutesPanel, TimingPanel } from "../components/Insights.tsx";
+import { WalletGuide } from "../components/WalletGuide.tsx";
 import { Button, Card, Container, ErrorNote, ModeBadge, ScoreDial } from "../components/ui.tsx";
 import type { AuditResult, Config, Destination, QuoteResult, StatusResult } from "../lib/api.ts";
 import { TERMINAL, api, confidentialityOf, messageOf } from "../lib/api.ts";
 import { crowdLabel, scoreTone, short } from "../lib/format.ts";
+import { savedSession, shieldedAt } from "../lib/storage.ts";
 
 interface FormValues {
   amountZec: string;
@@ -22,6 +30,7 @@ interface FormValues {
   recipient: string;
   confidentiality: "public" | "basic";
   funding: "shielded" | "transparent-fresh" | "transparent-reused";
+  shieldedAge: ShieldedAge;
   refund: "reused" | "one-time";
   refundTo: string;
 }
@@ -33,6 +42,23 @@ const SEVERITY: Record<Finding["severity"], { label: string; cls: string }> = {
   low: { label: "Low", cls: "text-accent border-accent/40" },
   ok: { label: "OK", cls: "text-good border-good/40" },
 };
+
+/** What is kept, encrypted, when the user saves an unfinished swap. */
+interface SessionData {
+  form: FormValues;
+  audit: AuditResult;
+  bucket: Bucket;
+  mnemonic: string;
+  quote?: QuoteResult;
+}
+
+/** Prefill the recency question from the last inbound swap, if there was one. */
+function defaultAge(): ShieldedAge {
+  const at = shieldedAt.read();
+  if (!at) return "unknown";
+  const h = (Date.now() - at) / 3_600_000;
+  return h < 1 ? "under-hour" : h < 24 ? "hours" : "over-day";
+}
 
 function sortDestinations(ds: Destination[]): Destination[] {
   const rank = (d: Destination) =>
@@ -171,21 +197,48 @@ function Findings({ report }: { report: Report }) {
 
 function DescribeStep({
   config,
+  initial,
+  preset,
   onAudited,
 }: {
   config: Config;
+  initial?: FormValues;
+  /** A route picked from the comparison: switch to it, keeping what still applies. */
+  preset?: { destinationAsset: string; n: number };
   onAudited: (form: FormValues, audit: AuditResult) => void;
 }) {
   const dests = useMemo(() => sortDestinations(config.destinations), [config.destinations]);
-  const [v, setV] = useState<FormValues>({
-    amountZec: "",
-    destinationAsset: dests[0]?.assetId ?? "",
-    recipient: "",
-    confidentiality: "public",
-    funding: "shielded",
-    refund: "reused",
-    refundTo: "",
-  });
+  const [v, setV] = useState<FormValues>(
+    () =>
+      initial ?? {
+        amountZec: "",
+        destinationAsset: dests[0]?.assetId ?? "",
+        recipient: "",
+        confidentiality: "public",
+        funding: "shielded",
+        shieldedAge: defaultAge(),
+        refund: "reused",
+        refundTo: "",
+      },
+  );
+  const recipientRef = useRef<HTMLInputElement>(null);
+  // A route picked below: adjust the form while rendering, then move focus.
+  const [presetSeen, setPresetSeen] = useState(preset?.n);
+  if (preset && preset.n !== presetSeen) {
+    setPresetSeen(preset.n);
+    const was = dests.find((d) => d.assetId === v.destinationAsset)?.blockchain;
+    const now = dests.find((d) => d.assetId === preset.destinationAsset)?.blockchain;
+    setV({
+      ...v,
+      destinationAsset: preset.destinationAsset,
+      recipient: was === now ? v.recipient : "",
+    });
+  }
+  useEffect(() => {
+    if (!preset) return;
+    recipientRef.current?.closest("section")?.scrollIntoView({ behavior: "smooth" });
+    recipientRef.current?.focus({ preventScroll: true });
+  }, [preset]);
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -284,6 +337,7 @@ function DescribeStep({
           {(id, d) => (
             <input
               id={id}
+              ref={recipientRef}
               aria-describedby={d}
               aria-invalid={Boolean(errors.recipient)}
               className="field num text-sm"
@@ -336,6 +390,29 @@ function DescribeStep({
               </select>
             )}
           </Field>
+          {v.funding === "shielded" && (
+            <Field
+              label="Those funds were shielded"
+              hint="Money that enters and leaves the pool close together, in similar amounts, can be matched."
+            >
+              {(id, d) => (
+                <select
+                  id={id}
+                  aria-describedby={d}
+                  className="field"
+                  value={v.shieldedAge}
+                  onChange={(e) => {
+                    set("shieldedAge", e.target.value as ShieldedAge);
+                  }}
+                >
+                  <option value="unknown">Not sure</option>
+                  <option value="over-day">More than a day ago</option>
+                  <option value="hours">Within the last day</option>
+                  <option value="under-hour">Within the last hour</option>
+                </select>
+              )}
+            </Field>
+          )}
           <Field label="Refunds go to">
             {(id) => (
               <select
@@ -395,12 +472,19 @@ function AuditStep({
   onBucket,
   onHarden,
   hardened,
+  usd,
+  destinations,
+  onRoute,
 }: {
   audit: AuditResult;
   bucket?: Bucket;
   onBucket: (b: Bucket) => void;
   onHarden: () => void;
   hardened: boolean;
+  /** Value of the chosen amount, for the timing and route views. */
+  usd: number;
+  destinations: Destination[];
+  onRoute: (assetId: string) => void;
 }) {
   return (
     <>
@@ -477,8 +561,19 @@ function AuditStep({
       {audit.after.crowd.k < 2 && (
         <p className="mt-4 rounded-lg border border-warn/40 bg-warn/5 px-3 py-2 text-sm text-warn">
           Thin market: even the best amount has a small crowd right now. Crowdline cannot create
-          one; consider waiting for a busier hour.
+          one. The views below show when and where swaps like this are more common.
         </p>
+      )}
+      {usd > 0 && (
+        <div className="mt-6 grid gap-4">
+          <TimingPanel destinationAsset={audit.hardened.destinationAsset} usd={usd} />
+          <RoutesPanel
+            usd={usd}
+            destinationAsset={audit.hardened.destinationAsset}
+            destinations={destinations}
+            onPick={onRoute}
+          />
+        </div>
       )}
       <div className="mt-6">
         <Button onClick={onHarden} disabled={!bucket}>
@@ -491,14 +586,155 @@ function AuditStep({
 
 // ───────────────────────── step 3 ─────────────────────────
 
+function SaveSession({
+  saved,
+  onSave,
+  onForget,
+}: {
+  saved: boolean;
+  onSave: (passphrase: string) => Promise<void>;
+  onForget: () => void;
+}) {
+  const [pass, setPass] = useState("");
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  if (saved) {
+    return (
+      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-lg border border-good/40 bg-good/5 px-3 py-2 text-sm text-good">
+        Saved on this device, encrypted with your passphrase. It updates as the swap goes on.
+        <button type="button" className="text-muted underline hover:text-fg" onClick={onForget}>
+          Forget it
+        </button>
+      </div>
+    );
+  }
+  return (
+    <details className="mt-6 rounded-lg border border-line bg-ink p-4 text-sm">
+      <summary className="cursor-pointer font-medium">Keep this swap if the tab closes</summary>
+      <p className="mt-2 text-muted">
+        Encrypts the recovery words and the quote with a passphrase (PBKDF2 and AES-GCM in this
+        browser) and keeps them in this browser's storage. Nothing is sent anywhere. Reopen /app to
+        resume.
+      </p>
+      <form
+        className="mt-3 flex flex-wrap gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const p = passphraseProblem(pass);
+          if (p) {
+            setError(p);
+            return;
+          }
+          setBusy(true);
+          onSave(pass).then(
+            () => {
+              setPass("");
+            },
+            (x: unknown) => {
+              setError(messageOf(x));
+              setBusy(false);
+            },
+          );
+        }}
+      >
+        <input
+          type="password"
+          className="field max-w-64 text-sm"
+          autoComplete="new-password"
+          placeholder="Passphrase"
+          aria-label="Passphrase"
+          value={pass}
+          onChange={(e) => {
+            setPass(e.target.value);
+            setError(undefined);
+          }}
+        />
+        <Button type="submit" variant="secondary" disabled={busy}>
+          Save encrypted
+        </Button>
+      </form>
+      {error && <p className="mt-2 mb-0 text-xs text-bad">{error}</p>}
+    </details>
+  );
+}
+
+function ResumeSession({ onOpen }: { onOpen: (data: SessionData) => void }) {
+  const [sealed, setSealed] = useState(() => savedSession.read());
+  const [mins] = useState(() =>
+    sealed ? Math.round((Date.now() - Date.parse(sealed.savedAt)) / 60_000) : 0,
+  );
+  const [pass, setPass] = useState("");
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  if (!sealed) return null;
+  const ago =
+    mins < 60
+      ? `${mins} min`
+      : mins < 2880
+        ? `${Math.round(mins / 60)} h`
+        : `${Math.round(mins / 1440)} days`;
+  return (
+    <Card className="mb-5 p-5">
+      <p className="m-0 font-medium">You have an unfinished swap saved {ago} ago</p>
+      <form
+        className="mt-3 flex flex-wrap gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setBusy(true);
+          openSession<SessionData>(sealed, pass).then(
+            (d) => {
+              onOpen(d);
+              setSealed(null);
+            },
+            (x: unknown) => {
+              setError(messageOf(x));
+              setBusy(false);
+            },
+          );
+        }}
+      >
+        <input
+          type="password"
+          className="field max-w-64 text-sm"
+          autoComplete="current-password"
+          placeholder="Passphrase"
+          aria-label="Passphrase"
+          value={pass}
+          onChange={(e) => {
+            setPass(e.target.value);
+            setError(undefined);
+          }}
+        />
+        <Button type="submit" disabled={busy || !pass}>
+          {busy ? "Opening…" : "Resume"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            if (!window.confirm("Delete the saved swap? Its recovery words go with it.")) return;
+            savedSession.clear();
+            setSealed(null);
+          }}
+        >
+          Delete it
+        </Button>
+      </form>
+      {error && <p className="mt-2 mb-0 text-xs text-bad">{error}</p>}
+    </Card>
+  );
+}
+
 function RefundStep({
   refund,
   quotesEnabled,
   onQuote,
+  session,
 }: {
   refund: OneTimeRefund;
   quotesEnabled: boolean;
   onQuote: () => Promise<void>;
+  session: ReactNode;
 }) {
   const [shown, setShown] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -562,6 +798,7 @@ function RefundStep({
           I saved the recovery words somewhere safe
         </label>
       </div>
+      {session}
       <div className="mt-5 flex flex-col gap-3">
         {!quotesEnabled && (
           <ErrorNote>
@@ -699,10 +936,10 @@ function DepositStep({
         </dl>
       </div>
       <p className="mt-4 text-sm text-muted">
-        Scan with ZODL, Zingo or Zkool and pay from your{" "}
-        <strong className="text-fg">shielded</strong> balance. Send exactly this amount: anything
-        else is refunded to your one-time address instead of swapped.
+        Pay from your <strong className="text-fg">shielded</strong> balance. Send exactly this
+        amount: anything else is refunded to your one-time address instead of swapped.
       </p>
+      <WalletGuide />
       <div className="mt-4 flex flex-wrap gap-3">
         <a
           href={uri}
@@ -745,6 +982,16 @@ function DepositStep({
             {status.swapDetails.refundReason && (
               <p className="mt-2 text-sm text-warn">Reason: {status.swapDetails.refundReason}</p>
             )}
+            {status.status === "REFUNDED" && (
+              <p className="mt-3 mb-0 text-sm">
+                <Link className="text-accent hover:underline" to="/recover">
+                  Recover the refund
+                </Link>{" "}
+                <span className="text-muted">
+                  with your recovery words, without importing them into a wallet.
+                </span>
+              </p>
+            )}
           </>
         ) : (
           <div className="skeleton mt-3 h-5 w-48" />
@@ -770,6 +1017,10 @@ export default function SwapApp() {
   const [signed, setSigned] = useState(false);
   const [status, setStatus] = useState<StatusResult>();
   const [statusError, setStatusError] = useState<string>();
+  const [preset, setPreset] = useState<{ destinationAsset: string; n: number }>();
+  const [restored, setRestored] = useState<FormValues>();
+  /** Passphrase for the saved session, kept in memory only so it can be updated. */
+  const [sessionKey, setSessionKey] = useState<string>();
 
   useEffect(() => {
     document.title = "Check a swap · Crowdline";
@@ -803,9 +1054,31 @@ export default function SwapApp() {
     };
   }, [depositAddress]);
 
-  // The recovery words exist only in this tab: warn before it closes mid-swap.
+  // Keep the saved copy current as the quote arrives; drop it once paid out.
   useEffect(() => {
-    if (!refund || status?.status === "SUCCESS") return;
+    if (!sessionKey || !form || !audit || !bucket || !refund) return;
+    if (status?.status === "SUCCESS") {
+      savedSession.clear();
+      return;
+    }
+    const data: SessionData = { form, audit, bucket, mnemonic: refund.mnemonic, quote };
+    void sealSession(data, sessionKey).then(savedSession.write);
+  }, [sessionKey, form, audit, bucket, refund, quote, status?.status]);
+
+  function resume(d: SessionData) {
+    setRestored(d.form);
+    setForm(d.form);
+    setAudit(d.audit);
+    setBucket(d.bucket);
+    setRefund(refundFromMnemonic(d.mnemonic, "mainnet"));
+    setQuote(d.quote);
+    setSigned(d.quote ? verifyQuoteSignature(d.quote) : false);
+    setStatus(undefined);
+  }
+
+  // The recovery words exist only in this tab unless saved: warn before it closes mid-swap.
+  useEffect(() => {
+    if (!refund || sessionKey || status?.status === "SUCCESS") return;
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault();
     };
@@ -813,7 +1086,7 @@ export default function SwapApp() {
     return () => {
       window.removeEventListener("beforeunload", warn);
     };
-  }, [refund, status]);
+  }, [refund, sessionKey, status]);
 
   const dest = config?.destinations.find((d) => d.assetId === form?.destinationAsset);
   const destLabel = dest ? `${dest.symbol} on ${dest.blockchain}` : "";
@@ -859,6 +1132,8 @@ export default function SwapApp() {
         </p>
       )}
 
+      {!audit && <ResumeSession onOpen={resume} />}
+
       <div className="flex flex-col gap-5">
         <Step
           n={1}
@@ -876,7 +1151,10 @@ export default function SwapApp() {
             </div>
           ) : (
             <DescribeStep
+              key={restored ? "restored" : "new"}
               config={config}
+              initial={restored}
+              preset={preset}
               onAudited={(f, a) => {
                 setForm(f);
                 setAudit(a);
@@ -910,11 +1188,16 @@ export default function SwapApp() {
                 setQuote(undefined);
                 setStatus(undefined);
               }}
+              usd={bucket ? Number(bucket.amountZec) * (config?.zec?.price ?? 0) : 0}
+              destinations={config?.destinations ?? []}
+              onRoute={(destinationAsset) => {
+                setPreset((p) => ({ destinationAsset, n: (p?.n ?? 0) + 1 }));
+              }}
             />
           </Step>
         )}
 
-        {refund && form && bucket && (
+        {refund && form && bucket && audit && (
           <Step
             key={refund.address}
             n={3}
@@ -924,6 +1207,24 @@ export default function SwapApp() {
           >
             <RefundStep
               refund={refund}
+              session={
+                <SaveSession
+                  saved={Boolean(sessionKey)}
+                  onSave={async (pass) => {
+                    savedSession.write(
+                      await sealSession(
+                        { form, audit, bucket, mnemonic: refund.mnemonic, quote },
+                        pass,
+                      ),
+                    );
+                    setSessionKey(pass);
+                  }}
+                  onForget={() => {
+                    savedSession.clear();
+                    setSessionKey(undefined);
+                  }}
+                />
+              }
               quotesEnabled={Boolean(config?.quotes)}
               onQuote={async () => {
                 const q = await api.quote({

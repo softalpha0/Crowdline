@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { ButtonLink, Card, Container, ModeBadge, ScoreDial } from "../components/ui.tsx";
-import type { Stats } from "../lib/api.ts";
+import type { Backtest, Stats } from "../lib/api.ts";
 import { api, messageOf } from "../lib/api.ts";
 import { usd, usdCompact } from "../lib/format.ts";
 import { LINKS } from "../lib/links.ts";
@@ -189,7 +189,7 @@ const STEPS = [
   },
   {
     t: "Execute",
-    d: "Asks 1Click for a confidential, exact-input quote, checks its signature, and shows a ZIP-321 QR you pay from Orchard.",
+    d: "Asks 1Click for a confidential, exact-input quote, checks its signature, and shows a ZIP-321 QR you pay from the shielded pool.",
     icon: (
       <>
         <rect x="4" y="4" width="6" height="6" rx="1" />
@@ -271,6 +271,95 @@ const FAQ = [
     a: "Full marks for the amount need about 32 look-alike swaps in the same 30-minute window. Most hours do not have that, and the score reports what is there.",
   },
 ];
+
+function pct(n: number): string {
+  return `${Math.round(n * 100)}%`;
+}
+
+/** Replays the observer the score models against yesterday's real swaps. */
+function BacktestSection() {
+  const [b, setB] = useState<Backtest>();
+  const [error, setError] = useState<string>();
+  useEffect(() => {
+    api.backtest().then(setB, (e: unknown) => {
+      setError(messageOf(e));
+    });
+  }, []);
+  const rows = b?.buckets.filter((x) => x.swaps > 0) ?? [];
+  return (
+    <section aria-labelledby="backtest" className="border-y border-line bg-panel">
+      <Container className="py-16 sm:py-20">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="eyebrow m-0">Backtest</p>
+          <ModeBadge mode={error ? undefined : b?.mode} />
+        </div>
+        <h2 id="backtest" className="mt-3 text-2xl font-semibold sm:text-3xl">
+          Does the crowd number hold up?
+        </h2>
+        <p className="mt-3 max-w-2xl text-muted">
+          For every swap out of Zcash in the last day, Crowdline plays the observer: it looks for
+          payouts of the same asset within ±{b ? b.windowHours * 60 : 15} minutes and ±
+          {b ? pct(b.band) : "1%"} of the deposit's dollar value, and counts how many it cannot tell
+          apart. If the score is honest, swaps it calls crowded should be hard to pin down.
+        </p>
+        {error ? (
+          <p className="mt-6 text-sm text-faint">Could not run the backtest right now: {error}</p>
+        ) : !b ? (
+          <div className="skeleton mt-8 h-40 w-full" aria-busy="true" />
+        ) : b.swaps === 0 ? (
+          <p className="mt-6 text-sm text-faint">No swaps out of Zcash in the window to test.</p>
+        ) : (
+          <>
+            <div className="mt-8 overflow-x-auto">
+              <table className="num w-full min-w-[30rem] border-collapse text-left text-sm">
+                <thead className="text-xs text-faint">
+                  <tr>
+                    <th className="border-b border-line py-2 font-normal">
+                      Crowd Crowdline predicted
+                    </th>
+                    <th className="border-b border-line py-2 font-normal">Swaps</th>
+                    <th className="border-b border-line py-2 font-normal">Candidates seen</th>
+                    <th className="border-b border-line py-2 font-normal">Linked with certainty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.fromK}>
+                      <td className="border-b border-line py-2">
+                        {r.toK === null ? `${r.fromK} or more` : `${r.fromK} to ${r.toK}`}
+                      </td>
+                      <td className="border-b border-line py-2">
+                        {r.swaps.toLocaleString("en-US")}
+                      </td>
+                      <td className="border-b border-line py-2">{r.meanCandidates.toFixed(1)}</td>
+                      <td
+                        className={`border-b border-line py-2 ${r.uniquelyLinked > 0.5 ? "text-bad" : r.uniquelyLinked > 0.2 ? "text-warn" : "text-good"}`}
+                      >
+                        {pct(r.uniquelyLinked)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-sm text-muted">
+              {b.swaps.toLocaleString("en-US")} swaps tested. Overall, an observer with only public
+              data would have linked {pct(b.uniquelyLinked)} of them to a single payout.
+              {b.trueInBand < 0.9 &&
+                ` ${pct(1 - b.trueInBand)} paid out more than ${pct(b.band)} away from what went in (fees, slippage), which this observer misses.`}
+            </p>
+            <p className="mt-2 text-xs text-faint">
+              Deposit and payout are both placed at the swap's creation time, the only time the
+              Explorer gives. Public-mode rows link directly; this measures what amount and timing
+              alone give away.{" "}
+              {b.mode === "demo" && "These numbers come from demo data, not real swaps."}
+            </p>
+          </>
+        )}
+      </Container>
+    </section>
+  );
+}
 
 export function Landing() {
   return (
@@ -373,6 +462,8 @@ export function Landing() {
           </p>
         </Container>
       </section>
+
+      <BacktestSection />
 
       <Container className="grid gap-16 py-20 sm:py-28 lg:grid-cols-2">
         <section aria-labelledby="limits">

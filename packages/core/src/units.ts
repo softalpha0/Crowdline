@@ -36,3 +36,12 @@ function numberToPlain(n: number): string {
   // toFixed(8) avoids exponent notation and rounds to the zatoshi.
   return n.toFixed(ZEC_DECIMALS).replace(/\.?0+$/, "") || "0";
 }
+
+/** Parse a decimal amount of a token with `decimals` places into its smallest unit. */
+export function parseUnits(input: string, decimals: number): bigint {
+  const text = input.trim();
+  if (!/^\d+(\.\d+)?$/.test(text)) throw new Error(`Not an amount: ${input}`);
+  const [whole = "0", frac = ""] = text.split(".");
+  if (frac.length > decimals) throw new Error(`This token has at most ${decimals} decimals`);
+  return BigInt(whole) * 10n ** BigInt(decimals) + BigInt(frac.padEnd(decimals, "0") || "0");
+}

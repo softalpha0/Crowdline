@@ -78,3 +78,19 @@ Explorer's 429 in plain words instead of failing silently.
 `apps/server/src/app.ts` `explain()` maps upstream failures to messages a person can act on: an
 Explorer 429, a rejected key, 1Click's bare 500 for a token-contract payout address, and network
 failures. The browser shows them in place, next to the step that failed.
+
+## Added on Oct 28
+
+- **Insights** (`packages/core/src/insights.ts`): `crowdByHour`, `compareRoutes` and `backtest`
+  reuse the crowd model. The backtest counts with binary search over sorted values, so a day of
+  thousands of swaps replays in about a tenth of a second.
+- **Explorer series** (`apps/server/src/data.ts`): every view reads from two kinds of cached
+  series, swaps out of Zcash and payouts of one asset, each over the last 72 hours. Stats, audit,
+  timing, routes and the backtest filter those instead of making their own requests.
+- **Shared cache** (`apps/server/src/cache.ts`): with Upstash or Vercel KV configured, series are
+  stored there and an `SET NX PX 5100` key spaces Explorer requests across instances.
+- **Sweeps** (`packages/core/src/ztx.ts`): transparent v5 and v6 transactions with ZIP 244
+  digests. The browser builds and signs; `apps/server/src/lightwalletd.ts` looks up coins and
+  relays the signed bytes over gRPC, with the protobuf messages encoded by hand.
+- **Sessions** (`packages/core/src/session.ts`): PBKDF2-SHA256 (310,000 rounds) to AES-256-GCM,
+  WebCrypto only.
