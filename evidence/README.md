@@ -10,7 +10,7 @@ happened.
 
 ## Run 01 · 0.0015 ZEC → USDC on Solana · SUCCESS
 
-Made on the live site, https://crowdline-chi.vercel.app, with live Explorer crowd data, on
+Made on the live site, https://www.crowdl.site, with live Explorer crowd data, on
 Oct 27, 2026. Receipt: [`run-01/receipt.json`](run-01/receipt.json).
 
 | Time (UTC) | Event                                                                                 | Transaction                                                                                                                           | 1Click status     | Score   |
@@ -55,11 +55,11 @@ The swap was confidential, so 1Click's status endpoint only answers with a partn
 app proxies it with its own key:
 
 ```bash
-curl -s "https://crowdline-chi.vercel.app/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | jq '{status, swapDetails}'
+curl -s "https://www.crowdl.site/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | jq '{status, swapDetails}'
 ```
 
 ```powershell
-Invoke-RestMethod "https://crowdline-chi.vercel.app/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | ConvertTo-Json -Depth 6
+Invoke-RestMethod "https://www.crowdl.site/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | ConvertTo-Json -Depth 6
 ```
 
 Without a key, 1Click itself says the address is not found, which is the confidentiality working:
@@ -72,5 +72,5 @@ curl -s "https://1click.chaindefuser.com/v0/status?depositAddress=t1ZN3CtgSe63JS
   https://solscan.io/tx/5zbufqTqQNa1HLGUGrgZgWUDMCdgkGiVjDJb8mCdPHqCqH2BimvBNar9G8m688kkVMYPmGrzq9VkUYE4T8vsH7az
 - Deposit address on Zcash:
   https://mainnet.zcashexplorer.app/address/t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr
-- Signature: load `run-01/receipt.json` on https://crowdline-chi.vercel.app/receipt. It checks
+- Signature: load `run-01/receipt.json` on https://www.crowdl.site/receipt. It checks
   1Click's ed25519 signature in your browser.

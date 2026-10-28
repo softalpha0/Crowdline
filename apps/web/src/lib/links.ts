@@ -1,6 +1,6 @@
 /** Outbound links in one place, so the video link is a one-line change. */
 export const LINKS = {
-  app: "https://crowdline-chi.vercel.app",
+  app: "https://www.crowdl.site",
   repo: "https://github.com/softalpha0/crowdline",
   docs: "https://github.com/softalpha0/crowdline#readme",
   evidence: "https://github.com/softalpha0/crowdline/tree/main/evidence",

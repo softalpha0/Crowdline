@@ -14,7 +14,7 @@ you pay straight from your shielded balance. It never holds funds.
 [![Crowdline](docs/demo-poster.jpg)](#crowdline)
 
 - **Demo video:** _added after recording_
-- **Live app:** https://crowdline-chi.vercel.app
+- **Live app:** https://www.crowdl.site
 - **Verified mainnet run:** [`evidence/`](evidence/)
 - **Docs:** [threat model](docs/threat-model.md) · [scoring](docs/scoring.md) ·
   [architecture](docs/architecture.md) · [submission](docs/submission.md)
@@ -308,12 +308,12 @@ bridge from Solana shortly before), and the timing link that leaves.
 Check it yourself:
 
 ```bash
-curl -s "https://crowdline-chi.vercel.app/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr"
+curl -s "https://www.crowdl.site/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr"
 curl -s "https://1click.chaindefuser.com/v0/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr"   # not found: confidential
 ```
 
 ```powershell
-Invoke-RestMethod "https://crowdline-chi.vercel.app/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | ConvertTo-Json -Depth 6
+Invoke-RestMethod "https://www.crowdl.site/api/status?depositAddress=t1ZN3CtgSe63JSfynA3jc1oTV46i3Eyz6Mr" | ConvertTo-Json -Depth 6
 ```
 
 ## Screens
