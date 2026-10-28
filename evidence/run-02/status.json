@@ -1,0 +1,91 @@
+{
+  "status": "SUCCESS",
+  "updatedAt": "2026-10-28T17:29:39.000Z",
+  "correlationId": "d1e27696-9db8-4b24-8ddd-ac67b5f707b7",
+  "swapDetails": {
+    "depositedAmount": "1800000",
+    "depositedAmountUsd": "1.799044200000",
+    "depositedAmountFormatted": "1.8",
+    "intentHashes": [
+      "6TAHxfMXQnucNXe9URGdYUwig8JZEuk9QgfeB5kUFart",
+      "5tY1M2kzVcjmqavcjoKTSRZcQm8Hfi3qBR3XcLUtnRxu"
+    ],
+    "nearTxHashes": [
+      "GfEcKocPS6ZMKTX5fLU4yJiBMk53jgHsaxNZnSSqAdsv",
+      "EMtYHHaGStG2uFCTWrqNNhN1cn62JHefNWks73pSdqDo",
+      "CjaYjAaFM5p9NkyHPPAz1xFYnmUPGYF55bUm9nvZvX8f",
+      "5SiAQY85fcvK9sf9J6ex6Xv3tJXK1iSDcbvgkPtfavkG"
+    ],
+    "amountIn": "1800000",
+    "amountInFormatted": "1.8",
+    "amountInUsd": "1.799101800000",
+    "amountOut": "109274",
+    "amountOutFormatted": "0.00109274",
+    "amountOutUsd": "1.388260605600",
+    "slippage": 18,
+    "refundedAmount": "0",
+    "refundedAmountFormatted": "0",
+    "refundedAmountUsd": "0",
+    "refundReason": null,
+    "refundFee": "10006",
+    "withdrawFee": "32000",
+    "originChainTxHashes": [
+      {
+        "hash": "3wYfEVT4wUFyEdmGtZpAsyQeWRnjd9fue7namD36XhmrCHnuFsfkSNVgYvQEvmTdYxbKQ3xbjn1xpoK88qvVAhH1",
+        "explorerUrl": ""
+      }
+    ],
+    "destinationChainTxHashes": [
+      {
+        "hash": "ee622a897a1f8829faeb37355e70c56ba34dd395751c815b9a3d099c6c6e0211",
+        "explorerUrl": ""
+      }
+    ]
+  },
+  "quoteResponse": {
+    "timestamp": "2026-10-28T17:19:20.204Z",
+    "signature": "ed25519:3zPka9tAK2FpggGNfcx3iPRJVoqTLiKnQigJFqic1ykD3wB67xAmsZwLurDiYMpWGc1vC1e5R2sagFYPXbeb5Rrs",
+    "quoteRequest": {
+      "dry": false,
+      "swapType": "EXACT_INPUT",
+      "depositMode": "SIMPLE",
+      "slippageTolerance": 100,
+      "originAsset": "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near",
+      "depositType": "ORIGIN_CHAIN",
+      "destinationAsset": "nep141:zec.omft.near",
+      "amount": "1800000",
+      "refundTo": "DvNXJTFuXi3TvDHHkP5uVMKzFiV79iSA3vXjKYr7LEKq",
+      "refundType": "ORIGIN_CHAIN",
+      "recipient": "t1YG266MnLUyGqm7rT9RX1e8anEpQDajLpN",
+      "recipientType": "DESTINATION_CHAIN",
+      "deadline": "2026-10-28T18:19:20.115Z",
+      "appFees": [
+        {
+          "limitOrderId": null,
+          "recipient": "2238fd089f1c92b206c218cd16b8676cb98964e0d50f8ab729c6396a81e07805",
+          "fee": 20
+        }
+      ],
+      "virtualChainRecipient": null,
+      "virtualChainRefundRecipient": null,
+      "referral": "crowdline",
+      "confidentiality": "basic"
+    },
+    "quote": {
+      "amountIn": "1800000",
+      "amountInFormatted": "1.8",
+      "amountInUsd": "1.798990200000",
+      "minAmountIn": "1800000",
+      "amountOut": "109474",
+      "amountOutFormatted": "0.00109474",
+      "amountOutUsd": "1.385710944600",
+      "minAmountOut": "108379",
+      "timeWhenInactive": "2026-10-31T18:19:20.115Z",
+      "depositAddress": "szc6uC4FBgDxntF8pJKqWpjWxHtCVSJuijn7GaupZLo",
+      "deadline": "2026-10-31T18:19:20.115Z",
+      "timeEstimate": 137,
+      "refundFee": "10006",
+      "withdrawFee": "32000"
+    }
+  }
+}

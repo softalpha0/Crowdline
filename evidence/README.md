@@ -49,6 +49,33 @@ minutes later. That timing link is exactly what Crowdline's audit warns about, a
 recorded here rather than left out. A real user would shield well in advance and let the funds
 sit.
 
+## Run 02 · 1.8 USDC on Solana → ZEC, through `/in` · SUCCESS
+
+The first run of the way in, made on the live site on Oct 28, 2026. Full status as returned by
+1Click through the live app: [`run-02/status.json`](run-02/status.json).
+
+| Time (UTC)  | Event                                                                        | Transaction                                                                                                                            | 1Click status     |
+| ----------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 17:19:20    | Confidential quote on `/in`, signed by 1Click, verified in the browser       | quote `41890b84-ad76-46c4-8245-5514a3f334de`                                                                                           | `PENDING_DEPOSIT` |
+| after quote | 1.8 USDC sent from Phantom to `szc6uC4F…7GaupZLo`                            | [`3wYfEVT4…88qvVAhH1`](https://solscan.io/tx/3wYfEVT4wUFyEdmGtZpAsyQeWRnjd9fue7namD36XhmrCHnuFsfkSNVgYvQEvmTdYxbKQ3xbjn1xpoK88qvVAhH1) | `PROCESSING`      |
+| 17:29:39    | ZEC paid to ZODL's transparent address `t1YG266MnLUyGqm7rT9RX1e8anEpQDajLpN` | [`ee622a89…6c6e0211`](https://mainnet.zcashexplorer.app/transactions/ee622a897a1f8829faeb37355e70c56ba34dd395751c815b9a3d099c6c6e0211) | `SUCCESS`         |
+
+What it shows:
+
+- **Confidential.** `confidentiality: "basic"`. 1Click's public status endpoint, asked without a
+  partner key, answers `Deposit address szc6uC4FBgDxntF8pJKqWpjWxHtCVSJuijn7GaupZLo not found`.
+- **Signed.** `verifyQuoteSignature` accepts the quote inside the final status.
+- **Delivered.** On Zcash, output 0 of `ee622a89…` pays 116,274 zatoshi (0.00116274 ZEC) to the
+  ZODL t-address, read back through lightwalletd with Crowdline's `/api/refund/coins`. That is
+  the amount ZODL showed arriving. 1Click's status reports `amountOut` 0.00109274; the chain
+  shows 7,000 zatoshi more, and the chain is what counts here.
+- **Fees.** Both runs carry a 20 basis point `appFees` entry that 1Click adds to quotes made with
+  this partner key. Crowdline's requests do not set it, and `appFees` is not covered by the quote
+  signature.
+- **What stays public.** The Solana payment from the Phantom wallet and the arrival at the ZODL
+  t-address are both visible on their own chains. The next step, shielding it in ZODL and
+  letting it sit, is what the page tells the user to do.
+
 ## Verify a run yourself
 
 The swap was confidential, so 1Click's status endpoint only answers with a partner key. The live

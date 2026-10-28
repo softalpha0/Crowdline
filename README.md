@@ -317,6 +317,10 @@ without a partner key. The executed quote is also a test fixture, and changing i
 breaks the signature. The evidence page also records how the ZEC reached the shielded wallet (a
 bridge from Solana shortly before), and the timing link that leaves.
 
+A second run, on Oct 28, went the other way through `/in`: 1.8 USDC on Solana in, a confidential
+signed quote, and 0.00116274 ZEC delivered to the ZODL wallet's transparent address, checked on
+the Zcash chain through lightwalletd. It is written up as run 02 in [`evidence/`](evidence/).
+
 Check it yourself:
 
 ```bash
