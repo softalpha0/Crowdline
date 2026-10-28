@@ -97,7 +97,10 @@ function TimingView({ t }: { t: Timing }) {
           );
         })}
       </ol>
-      <p className="mt-2 mb-0 text-xs text-faint">Hours in UTC. Darker means a bigger crowd.</p>
+      <p className="mt-2 mb-0 text-xs text-faint">
+        Hours in UTC. Darker means a bigger crowd. Counts swaps out of Zcash only, so real crowds
+        can be larger, not smaller.
+      </p>
     </>
   );
 }
@@ -199,7 +202,8 @@ function RoutesView({
         })}
       </ul>
       <p className="mt-3 mb-0 text-xs text-faint">
-        A different chain needs a payout address on that chain.
+        Counts swaps out of Zcash only, so every route's crowd is a lower bound. A different chain
+        needs a payout address on that chain.
       </p>
     </>
   );

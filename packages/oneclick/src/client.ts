@@ -140,11 +140,18 @@ export class Explorer {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v !== undefined) params.set(k, String(v));
     const url = `${this.opts.baseUrl ?? EXPLORER_URL}/transactions?${params}`;
-    return this.schedule(() =>
-      json<ExplorerRow[]>(this.opts.fetch ?? fetch, url, {
-        headers: { Authorization: `Bearer ${this.opts.jwt}` },
-      }),
-    );
+    const get = () =>
+      this.schedule(() =>
+        json<ExplorerRow[]>(this.opts.fetch ?? fetch, url, {
+          headers: { Authorization: `Bearer ${this.opts.jwt}` },
+        }),
+      );
+    // Another server instance may have used the same 5-second slot: wait one
+    // turn and try once more before giving up.
+    return get().catch((err: unknown) => {
+      if (err instanceof HttpError && err.status === 429) return get();
+      throw err;
+    });
   }
 
   /**

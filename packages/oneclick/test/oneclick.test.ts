@@ -193,3 +193,18 @@ describe("buildInboundQuoteRequest", () => {
     expect(() => buildInboundQuoteRequest({ ...base, amount: "0" })).toThrow(/positive/);
   });
 });
+
+describe("Explorer rate limit", () => {
+  it("waits one turn and retries a 429 once", async () => {
+    let n = 0;
+    const f = (async () => {
+      n++;
+      return n === 1
+        ? new Response('{"message":"Too Many Requests"}', { status: 429 })
+        : Response.json([]);
+    }) as unknown as typeof fetch;
+    const ex = new Explorer({ jwt: "j", fetch: f, minGapMs: 0 });
+    expect(await ex.transactions({ fromChainId: "zec" })).toEqual([]);
+    expect(n).toBe(2);
+  });
+});

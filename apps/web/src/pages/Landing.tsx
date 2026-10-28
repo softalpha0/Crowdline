@@ -350,8 +350,9 @@ function BacktestSection() {
             </p>
             <p className="mt-2 text-xs text-faint">
               Deposit and payout are both placed at the swap's creation time, the only time the
-              Explorer gives. Public-mode rows link directly; this measures what amount and timing
-              alone give away.{" "}
+              Explorer gives. Public-mode rows link directly; payouts are counted from swaps out of
+              Zcash only, so an observer here sees fewer candidates than a real one would and links
+              more often. This measures what amount and timing alone give away.{" "}
               {b.mode === "demo" && "These numbers come from demo data, not real swaps."}
             </p>
           </>

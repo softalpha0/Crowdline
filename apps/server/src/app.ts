@@ -239,18 +239,26 @@ export function createApp(data: DataSource, webDist?: string) {
     if (req.method === "GET" && url.pathname === "/api/timing") {
       const destinationAsset = url.searchParams.get("destinationAsset");
       if (!destinationAsset) throw new UserError(400, "destinationAsset is required");
-      send(res, 200, { mode: data.mode, ...(await data.timing(destinationAsset, usdParam(url))) });
+      send(res, 200, {
+        mode: data.mode,
+        basis: "zcash-origin",
+        ...(await data.timing(destinationAsset, usdParam(url))),
+      });
       return;
     }
 
     if (req.method === "GET" && url.pathname === "/api/routes") {
       const also = url.searchParams.get("destinationAsset") ?? undefined;
-      send(res, 200, { mode: data.mode, routes: await data.routes(usdParam(url), also) });
+      send(res, 200, {
+        mode: data.mode,
+        basis: "zcash-origin",
+        routes: await data.routes(usdParam(url), also),
+      });
       return;
     }
 
     if (req.method === "GET" && url.pathname === "/api/backtest") {
-      send(res, 200, await data.backtest());
+      send(res, 200, { basis: "zcash-origin", ...(await data.backtest()) });
       return;
     }
 

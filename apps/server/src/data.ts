@@ -173,9 +173,12 @@ export class DataSource {
     }));
   }
 
-  /** Finished swaps matching one Explorer filter over the last three days. */
-  private series(filter: Pick<ExplorerQuery, "fromChainId" | "toTokenId">): Promise<Series> {
-    const key = `series:${filter.fromChainId ?? ""}:${filter.toTokenId ?? ""}`;
+  /** Finished swaps matching one Explorer filter over the last `hours`. */
+  private series(
+    filter: Pick<ExplorerQuery, "fromChainId" | "toTokenId">,
+    hours: number,
+  ): Promise<Series> {
+    const key = `series:${filter.fromChainId ?? ""}:${filter.toTokenId ?? ""}:${hours}`;
     return this.cached(key, SERIES_TTL_MS, async () => {
       if (!this.explorer) {
         const zec = await this.zec();
@@ -187,29 +190,35 @@ export class DataSource {
       }
       const res = await this.explorer.transactionsSince(
         { statuses: "SUCCESS", ...filter },
-        this.nowSec() - HISTORY_HOURS * 3600,
+        this.nowSec() - hours * 3600,
       );
       return { flows: flowsFromExplorer(res.rows), pages: res.pages, truncated: res.truncated };
     });
   }
 
+  /**
+   * Swaps out of Zcash over three days: one read shared by stats, timing,
+   * routes and the backtest. Popular payout assets can have thousands of
+   * payouts a day from other chains, too many pages to read per request, so
+   * those views count payouts from Zcash only. That undercounts crowds: the
+   * numbers can only be stricter than the truth, never kinder.
+   */
   private zecSeries() {
-    return this.series({ fromChainId: "zec" });
+    return this.series({ fromChainId: "zec" }, HISTORY_HOURS);
   }
 
-  /** Swaps out of Zcash plus payouts of `destinationAsset` from any chain. */
-  private async history(destinationAsset: string): Promise<Flow[]> {
-    const [out, dest] = await Promise.all([
-      this.zecSeries(),
-      this.series({ toTokenId: destinationAsset }),
-    ]);
-    return dedupeFlows([...out.flows, ...dest.flows]);
+  private async zecFlows(hours: number): Promise<Flow[]> {
+    const since = this.nowSec() - hours * 3600;
+    return dedupeFlows((await this.zecSeries()).flows).filter((f) => f.t > since);
   }
 
   /** Swaps an observer could confuse with one going to `destinationAsset`, last 24 hours. */
   async flows(destinationAsset: string): Promise<Flow[]> {
-    const since = this.nowSec() - LOOKBACK_HOURS * 3600;
-    return (await this.history(destinationAsset)).filter((f) => f.t > since);
+    const [out, dest] = await Promise.all([
+      this.zecFlows(LOOKBACK_HOURS),
+      this.series({ toTokenId: destinationAsset }, LOOKBACK_HOURS),
+    ]);
+    return dedupeFlows([...out, ...dest.flows]);
   }
 
   /** Headline numbers for the landing page. */
@@ -235,7 +244,7 @@ export class DataSource {
   /** How crowded each hour of the day was for this swap, over three days. */
   async timing(destinationAsset: string, usd: number): Promise<TimingReport> {
     const zec = await this.zec();
-    return crowdByHour(await this.history(destinationAsset), {
+    return crowdByHour(await this.zecFlows(HISTORY_HOURS), {
       usd,
       zecAsset: zec.assetId,
       destinationAsset,
@@ -247,8 +256,7 @@ export class DataSource {
   /** The destinations people leave Zcash for, plus `also` if given. */
   async destinations(also?: string): Promise<string[]> {
     const zec = await this.zec();
-    const since = this.nowSec() - LOOKBACK_HOURS * 3600;
-    const recent = (await this.zecSeries()).flows.filter((f) => f.t > since);
+    const recent = await this.zecFlows(LOOKBACK_HOURS);
     const top = topDestinations(recent, zec.assetId, ROUTES);
     return also && !top.includes(also) ? [...top, also] : top;
   }
@@ -257,11 +265,8 @@ export class DataSource {
   async routes(usd: number, also?: string): Promise<RouteCrowd[]> {
     const zec = await this.zec();
     const dests = await this.destinations(also);
-    const routes = [];
-    // One after another: each is an Explorer read in the same rate-limit queue.
-    for (const destinationAsset of dests) {
-      routes.push({ destinationAsset, flows: await this.flows(destinationAsset) });
-    }
+    const flows = await this.zecFlows(LOOKBACK_HOURS);
+    const routes = dests.map((destinationAsset) => ({ destinationAsset, flows }));
     return compareRoutes(routes, { usd, zecAsset: zec.assetId, now: this.nowSec() });
   }
 
@@ -270,11 +275,7 @@ export class DataSource {
     return this.cached("backtest", BACKTEST_TTL_MS, async () => {
       const zec = await this.zec();
       const dests = await this.destinations();
-      const flows: Flow[] = [];
-      for (const d of dests) flows.push(...(await this.flows(d)));
-      const covered = dedupeFlows(flows).filter(
-        (f) => f.originAsset !== zec.assetId || dests.includes(f.destinationAsset),
-      );
+      const covered = await this.zecFlows(LOOKBACK_HOURS);
       return {
         mode: this.mode,
         generatedAt: new Date(this.now()).toISOString(),

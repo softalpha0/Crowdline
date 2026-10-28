@@ -247,6 +247,8 @@ describe("insight routes", () => {
     const after = ex.calls.length;
     await get("/api/stats");
     await get(`/api/timing?destinationAsset=${USDC_SOL}&usd=900`);
+    await get(`/api/routes?usd=300&destinationAsset=${USDC_SOL}`);
+    await get("/api/backtest");
     expect(ex.calls.length).toBe(after);
   });
 });
