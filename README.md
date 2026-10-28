@@ -438,24 +438,6 @@ crowdline/
 - **Recovering a refund** needs a wallet that restores a seed and scans BIP-44 transparent
   addresses, or one that imports a WIF key. Test with a small amount first.
 
-<<<<<<< ours
-=======
-## Build log
-
-| When   | What                                                                                                      |
-| ------ | --------------------------------------------------------------------------------------------------------- |
-| Oct 27 | Picked the cross-chain track. Found the refund and swap-record leaks in public reports and the NEAR docs. |
-| Oct 27 | Crowd model, bucket rewrite, score, one-time refund keys, ZIP-321. 36 tests.                              |
-| Oct 27 | 1Click and Explorer clients, server, first web app, CLI.                                                  |
-| Oct 27 | Confirmed the ZEC asset id against live `/v0/tokens`; found that confidential quotes need a partner key.  |
-| Oct 27 | Quote signature verification from the official SDK's construction, tested on a real recorded quote.       |
-| Oct 27 | Explorer pagination, `/api/stats`, receipts by allow-list, plain-language upstream errors. 66 tests.      |
-| Oct 27 | React 19 + Tailwind 4 site: landing, swap flow, receipt verifier. Strict type-checked lint.               |
-| Oct 27 | Deployed to Vercel. Live audit: 511 swaps out of Zcash in 24h; a typical swap scores 10 → 40.             |
-| Oct 27 | First mainnet run: 0.0015 ZEC → 1.685932 USDC on Solana, confidential, signed, SUCCESS. 69 tests.         |
-| _next_ | Demo video, submission.                                                                                   |
-
->>>>>>> theirs
 ## Credits
 
 - [NEAR Intents](https://docs.near-intents.org/) docs for 1Click, Confidential Intents, the
