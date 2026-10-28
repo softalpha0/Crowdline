@@ -11,7 +11,6 @@ you pay straight from your shielded balance. It never holds funds.
 
 [![Crowdline](docs/demo-poster.jpg)](#crowdline)
 
-- **Demo video:** _added after recording_
 - **Live app:** https://www.crowdl.site
 - **Verified mainnet run:** [`evidence/`](evidence/)
 - **Docs:** [threat model](docs/threat-model.md) · [scoring](docs/scoring.md) ·
