@@ -1,4 +1,4 @@
-# Crowdline
+﻿# Crowdline
 
 [![CI](https://github.com/softalpha0/crowdline/actions/workflows/ci.yml/badge.svg)](https://github.com/softalpha0/crowdline/actions/workflows/ci.yml)
 
@@ -13,8 +13,8 @@ you pay straight from your shielded balance. It never holds funds.
 
 - **Live app:** https://www.crowdl.site
 - **Verified mainnet run:** [`evidence/`](evidence/)
-- **Docs:** [threat model](docs/threat-model.md) · [scoring](docs/scoring.md) ·
-  [architecture](docs/architecture.md) · [submission](docs/submission.md)
+- **Docs:** [threat model](docs/threat-model.md) Â· [scoring](docs/scoring.md) Â·
+  [architecture](docs/architecture.md) Â· [submission](docs/submission.md)
 
 Built for [Zecathon](https://thezecathon.com), Cross-chain track.
 
@@ -88,7 +88,7 @@ swaps checked): a typical swap of 3.417 ZEC to USDC on Solana, in public mode wi
 address and funded from a reused t-address, scores **10/100**. Through Crowdline it scores
 **40/100**. Confidential mode, the one-time refund address and shielded funding add 30 points. The
 amount adds almost nothing: that hour only about 0.08 Zcash deposits and 0.04 USDC-on-Solana
-payouts per hour fell within ±1% of any one amount, so the best crowd was about 1. That is the
+payouts per hour fell within Â±1% of any one amount, so the best crowd was about 1. That is the
 "thin market" limit, measured rather than assumed. The same 24 hours held 511 finished swaps out
 of Zcash worth $4.96M, median $249 (`GET /api/stats`).
 
@@ -172,19 +172,19 @@ the official SDK (`packages/oneclick/src/signature.ts`).
 
 For a swap worth `$usd` going to `destinationAsset`, Crowdline looks at the last 24 hours and counts:
 
-- `inRate`: Zcash-origin swaps per hour with `amountInUsd` within ±1% of `$usd`
-- `outRate`: swaps per hour paying out `destinationAsset` with `amountOutUsd` within ±1% of `$usd`
+- `inRate`: Zcash-origin swaps per hour with `amountInUsd` within Â±1% of `$usd`
+- `outRate`: swaps per hour paying out `destinationAsset` with `amountOutUsd` within Â±1% of `$usd`
 
-An observer who sees your deposit searches about ±15 minutes for a matching payout. The expected
+An observer who sees your deposit searches about Â±15 minutes for a matching payout. The expected
 number of swaps they cannot tell apart from yours, you included, is
 
 ```
-k    = 1 + min(inRate, outRate) × 2 × 0.25
+k    = 1 + min(inRate, outRate) Ã— 2 Ã— 0.25
 bits = log2(k)
 ```
 
 You are only as hidden as the thinner side. The amount is worth up to 60 points
-(`60 × min(1, bits / 5)`, full marks at k ≥ 32), a one-time refund address 15, shielded funding 15
+(`60 Ã— min(1, bits / 5)`, full marks at k â‰¥ 32), a one-time refund address 15, shielded funding 15
 (a fresh t-address 7) and a recipient with no swap history 10. A public-mode swap is capped at 10.
 
 **Worked example** (the test fixture, pinned in `packages/core/test/score.test.ts`): 48 swaps of
@@ -192,11 +192,11 @@ exactly 1 ZEC ($300) went from Zcash to USDC in the last 24 hours.
 
 | Step                     | Calculation                      | Result     |
 | ------------------------ | -------------------------------- | ---------- |
-| Deposits per hour in ±1% | 48 / 24                          | 2.0        |
-| Payouts per hour in ±1%  | 48 / 24                          | 2.0        |
-| Crowd                    | 1 + min(2.0, 2.0) × 2 × 0.25     | k = 2      |
+| Deposits per hour in Â±1% | 48 / 24                          | 2.0        |
+| Payouts per hour in Â±1%  | 48 / 24                          | 2.0        |
+| Crowd                    | 1 + min(2.0, 2.0) Ã— 2 Ã— 0.25     | k = 2      |
 | Bits                     | log2(2)                          | 1.0        |
-| Amount points            | 60 × min(1, 1.0 / 5)             | 12         |
+| Amount points            | 60 Ã— min(1, 1.0 / 5)             | 12         |
 | Hardening points         | one-time refund 15 + shielded 15 | 30         |
 | Recipient points         | no history                       | 10         |
 | **Score**                | 12 + 30 + 10                     | **52/100** |
@@ -248,7 +248,7 @@ sequenceDiagram
   participant Z as Zcash
   participant D as Destination
 
-  U->>B: 3.417 ZEC → USDC on Solana
+  U->>B: 3.417 ZEC â†’ USDC on Solana
   B->>C: POST /api/audit
   C->>E: swaps from zec, payouts of USDC (24h)
   E-->>C: finished swaps
@@ -307,8 +307,8 @@ with the receipt.
 
 | Time (UTC) | Event                                                                                                                                              | Status            |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| 23:22:34   | Live audit (10 → 40), confidential quote, signature verified                                                                                       | `PENDING_DEPOSIT` |
-| ~23:30     | 0.0015 ZEC paid from ZODL's shielded balance to `t1ZN3Ctg…Eyz6Mr`                                                                                  | `PROCESSING`      |
+| 23:22:34   | Live audit (10 â†’ 40), confidential quote, signature verified                                                                                       | `PENDING_DEPOSIT` |
+| ~23:30     | 0.0015 ZEC paid from ZODL's shielded balance to `t1ZN3Ctgâ€¦Eyz6Mr`                                                                                  | `PROCESSING`      |
 | 23:38:20   | [1.685932 USDC paid out on Solana](https://solscan.io/tx/5zbufqTqQNa1HLGUGrgZgWUDMCdgkGiVjDJb8mCdPHqCqH2BimvBNar9G8m688kkVMYPmGrzq9VkUYE4T8vsH7az) | `SUCCESS`         |
 
 The swap was confidential: 1Click's public status endpoint answers "deposit address not found"
@@ -337,8 +337,8 @@ Invoke-RestMethod "https://www.crowdl.site/api/status?depositAddress=t1ZN3CtgSe6
 | ----------------------------------------- | ----------------------------------------- | ------------------------------------------- |
 | ![Landing](docs/screens/landing-1440.png) | ![Audit](docs/screens/app-audit-1440.png) | ![Refund](docs/screens/app-refund-1440.png) |
 
-Phone (375px): [landing](docs/screens/landing-375.png) · [describe](docs/screens/app-describe-375.png) ·
-[audit](docs/screens/app-audit-375.png) · [refund](docs/screens/app-refund-375.png) ·
+Phone (375px): [landing](docs/screens/landing-375.png) Â· [describe](docs/screens/app-describe-375.png) Â·
+[audit](docs/screens/app-audit-375.png) Â· [refund](docs/screens/app-refund-375.png) Â·
 [receipt](docs/screens/receipt-375.png). Screens show live crowd data, captured Oct 27, 2026.
 
 ## Tech stack
@@ -434,20 +434,20 @@ No test touches the network. Every 1Click and Explorer response is a recorded fi
 
 ```
 crowdline/
-├── apps/
-│   ├── web/          React site: landing, /app, /in, /recover, /receipt
-│   ├── server/       API: config, stats, audit, quote, status, timing, routes, backtest,
-│   │                 inbound/quote, refund/coins, refund/broadcast; shared cache; lightwalletd
-│   └── cli/          crowdline audit | crowdline refund
-├── packages/
-│   ├── core/         crowd model, buckets, score, stats, insights, refund keys, sweeps
-│   │                 (ztx), sealed sessions, ZIP-321, receipts
-│   └── oneclick/     1Click + Explorer clients, quote builder, signature check
-├── docs/             threat model, scoring, architecture, submission, screens
-├── evidence/         mainnet receipts and transaction links
-├── scripts/          vercel-build.mjs (Build Output API)
-├── vercel.json       Vercel deploy
-└── .github/workflows/ci.yml
+â”œâ”€â”€ apps/
+â”‚   â”œâ”€â”€ web/          React site: landing, /app, /in, /recover, /receipt
+â”‚   â”œâ”€â”€ server/       API: config, stats, audit, quote, status, timing, routes, backtest,
+â”‚   â”‚                 inbound/quote, refund/coins, refund/broadcast; shared cache; lightwalletd
+â”‚   â””â”€â”€ cli/          crowdline audit | crowdline refund
+â”œâ”€â”€ packages/
+â”‚   â”œâ”€â”€ core/         crowd model, buckets, score, stats, insights, refund keys, sweeps
+â”‚   â”‚                 (ztx), sealed sessions, ZIP-321, receipts
+â”‚   â””â”€â”€ oneclick/     1Click + Explorer clients, quote builder, signature check
+â”œâ”€â”€ docs/             threat model, scoring, architecture, submission, screens
+â”œâ”€â”€ evidence/         mainnet receipts and transaction links
+â”œâ”€â”€ scripts/          vercel-build.mjs (Build Output API)
+â”œâ”€â”€ vercel.json       Vercel deploy
+â””â”€â”€ .github/workflows/ci.yml
 ```
 
 ## Known limitations
@@ -487,7 +487,6 @@ service, reproducible builds, IPFS mirror). Details: [docs/roadmap.md](docs/road
 - [paulmillr](https://paulmillr.com/noble/) for the noble and scure libraries.
 - Space Grotesk (Florian Karsten) and JetBrains Mono, both under the SIL Open Font License, served
   via Fontsource.
-- README structure modelled on [Cadence](https://github.com/Enoch208/cadence).
 
 Crowdline is independent and not affiliated with or endorsed by NEAR or the Zcash organisations.
 MIT licensed.
